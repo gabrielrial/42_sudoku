@@ -16,7 +16,9 @@ Application timezone: Europe/Berlin.
 | `docs/ROADMAP.md` | Phases, MVP scope, current status |
 | `docs/GAME_RULES.md` | Normative product behaviour |
 | `docs/DIFFICULTY.md` | How puzzles are graded and generated |
-| `docs/ARCHITECTURE.md` | Stack, components, data model, API, deployment |
+| `docs/ARCHITECTURE.md` | Stack, components, deployment |
+| `docs/DATA_MODEL.md` | Tables, columns, constraints |
+| `docs/API.md` | Endpoints, schemas, status codes |
 | `docs/SECURITY.md` | Threat model and required controls |
 | `docs/DECISIONS.md` | Decisions taken, and questions still open |
 

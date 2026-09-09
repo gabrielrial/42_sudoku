@@ -1,20 +1,23 @@
 # Roadmap
 
-**Current phase: Phase 0 — setup and design.** No application code exists yet.
+**Current phase: Phase 1 — foundation.** Phase 0 is complete; no application
+code exists yet.
 
 Each phase gets a branch, ends in a pull request with green CI, and is reviewed
 before merge. Do not start a phase before the previous one is merged.
 
 ---
 
-## Phase 0 — Setup and design (current)
+## Phase 0 — Setup and design (complete)
 
-- Split the documentation (done).
-- Answer the open questions in `DECISIONS.md`, or defer them explicitly.
-- Design the data model, the API and the repository structure.
-- Agree the tooling: Claude Code configuration, hooks, CI.
+- Documentation split into `AGENTS.md` plus `docs/`.
+- Thirteen questions answered and recorded in `DECISIONS.md`; four remain open
+  and none of them blocks Phases 1–6.
+- Data model specified in `DATA_MODEL.md`, API in `API.md`.
+- Repository initialised.
 
-Exit: open questions answered or deferred on purpose; data model and API agreed.
+Remaining from this phase, carried into Phase 1: the repository structure and
+the tooling (Claude Code configuration, hooks, CI).
 
 ## Phase 1 — Foundation
 

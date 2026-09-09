@@ -43,65 +43,17 @@ web server. Everything else is ordinary web application plumbing.
 A `statistics` module appears only in Phase 8. It is not part of the MVP and
 should not exist as an empty package before then.
 
-## Data model (draft — to be finalised in Phase 0)
+## Data model and API
 
-Entities:
+Both are now specified in full:
 
-- **User** — one row per 42 identity. The 42 user id, login, display name, plus
-  campus and account status (stored so that D12 can be tightened later without a
-  migration). See `SECURITY.md` for what must not be stored.
+- `DATA_MODEL.md` — tables, columns, types, constraints and indexes, and which
+  product rules the database enforces directly.
+- `API.md` — endpoints, request and response schemas, status codes, error
+  shapes, and the endpoints deliberately not built.
 
-- **Puzzle** — `puzzle_date`, `difficulty`, `givens`, `solution`, and metadata
-  about how it was generated and graded (seed, generator version, techniques the
-  grader needed). Unique on `(puzzle_date, difficulty)`.
-
-- **GameSession** — `user_id`, `puzzle_id`, and:
-  - `state` — a snapshot of the current grid (D14). No move log in the MVP.
-  - `started_at`, `completed_at` — the official time is the difference (D2, D10).
-  - `active_seconds` — accumulated active time, advisory only (D10).
-  - `last_activity_at` — drives both active time and the D6 expiry rule.
-  - `failed_attempts` — count of incorrect submissions (D13).
-  - status — open / completed / closed-by-rollover. Derived on read from
-    `last_activity_at` and the puzzle date (Q1); a nightly job materialises it
-    for statistics only.
-
-  Unique on `(user_id, puzzle_id)`, which is what enforces D3.
-
-Still to decide before implementing:
-
-- The exact snapshot format. It carries a version number from the first
-  migration and reserves room for pencil marks, which arrive after the MVP
-  (`DECISIONS.md` Q5).
-- Indexes, exact column types, and the representation of a grid (81-character
-  string vs. array).
-
-All timestamps are `timestamptz` stored in UTC. `puzzle_date` is a plain `DATE`.
-The Europe/Berlin rule is applied when computing "today", never in storage.
-
-## API (draft — to be designed in Phase 0)
-
-Sketch only. Naming, schemas, status codes and error shapes get designed before
-anything is implemented.
-
-    GET  /api/me
-    GET  /api/puzzles/today            -> which difficulties exist + my status;
-                                          NEVER the cells (Q13)
-    POST /api/games                    -> create a session; returns the grid
-    GET  /api/games/{id}               -> current state, for resuming
-    PUT  /api/games/{id}/cells/{index} -> one input, legality-checked only
-    POST /api/games/{id}/complete      -> submit the grid for verification
-    POST /api/games/{id}/heartbeat     -> activity signal, every 60s (D6/Q1)
-    GET  /api/me/games                 -> history (Phase 8)
-
-Constraints on the design:
-
-- No endpoint ever returns a solution, in whole or in part.
-- No endpoint returns a puzzle's cells before a session for it exists (Q13).
-- Every game endpoint authorises on session ownership, not just authentication.
-- Input and completion endpoints are rate-limited.
-- Completion is idempotent: submitting twice does not change `completed_at`.
-- Every game endpoint rejects a session closed by rollover, distinctly from
-  one that is merely completed — the client needs to tell the user why.
+All timestamps are `timestamptz` in UTC; `puzzle_date` is a bare `DATE`. The
+Europe/Berlin rule is applied when computing "today", never in storage.
 
 ## Deployment
 

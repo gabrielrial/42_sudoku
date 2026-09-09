@@ -18,7 +18,9 @@ through the official 42 OAuth2 API. Application timezone: **Europe/Berlin**.
 | `docs/ROADMAP.md` | Phases, MVP scope, current status | Starting any session |
 | `docs/GAME_RULES.md` | Normative product behaviour | Touching puzzles, sessions or timing |
 | `docs/DIFFICULTY.md` | How puzzles are graded and generated | Touching the Sudoku engine |
-| `docs/ARCHITECTURE.md` | Stack, components, data model, API, deployment | Making a structural change |
+| `docs/ARCHITECTURE.md` | Stack, components, deployment | Making a structural change |
+| `docs/DATA_MODEL.md` | Tables, columns, constraints | Touching the schema or a migration |
+| `docs/API.md` | Endpoints, schemas, status codes | Touching an endpoint |
 | `docs/SECURITY.md` | Threat model and required controls | Touching auth, input or game state |
 | `docs/DECISIONS.md` | Decisions taken, and questions still open | Before assuming an answer |
 
