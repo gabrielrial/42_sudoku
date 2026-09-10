@@ -1,7 +1,7 @@
 # Roadmap
 
-**Current phase: Phase 1 — foundation.** Phase 0 is complete; no application
-code exists yet.
+**Current phase: Phase 1 — foundation.** Scaffolding is in place; no game logic
+yet. Phase 2 (the Sudoku engine) is next.
 
 Each phase gets a branch, ends in a pull request with green CI, and is reviewed
 before merge. Do not start a phase before the previous one is merged.
@@ -19,11 +19,17 @@ before merge. Do not start a phase before the previous one is merged.
 Remaining from this phase, carried into Phase 1: the repository structure and
 the tooling (Claude Code configuration, hooks, CI).
 
-## Phase 1 — Foundation
+## Phase 1 — Foundation (in progress)
 
-Repository, backend and frontend skeletons, Docker Compose with PostgreSQL,
-configuration and environment handling, linting and formatting, test
-infrastructure, CI.
+Done: repository layout, backend and frontend skeletons, Docker Compose with
+PostgreSQL, configuration through the environment, `app/clock.py` with the
+Europe/Berlin day rules and their DST tests, the error envelope, Alembic wired
+(no migrations yet — models arrive in Phase 3), ruff/mypy/pytest configuration,
+pre-commit hooks, GitHub Actions, and `.claude/settings.json`.
+
+Remaining: run `docker compose up` on a machine with Docker and confirm the
+three services come up and `/api/health/db` answers; push and confirm CI is
+green.
 
 Exit: `docker compose up` gives a running (empty) application; the test suite
 runs in CI.

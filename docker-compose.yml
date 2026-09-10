@@ -1,0 +1,54 @@
+name: sudoku42
+
+# Local development only (deployment stage 1). Values come from .env, which is
+# never committed; see .env.example.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sudoku}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sudoku}
+      POSTGRES_DB: ${POSTGRES_DB:-sudoku}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sudoku} -d ${POSTGRES_DB:-sudoku}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:-dev-only-not-a-real-secret}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sudoku}:${POSTGRES_PASSWORD:-sudoku}@db:5432/${POSTGRES_DB:-sudoku}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+      AUTH_FAKE_PROVIDER_ENABLED: ${AUTH_FAKE_PROVIDER_ENABLED:-true}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/srv
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  web:
+    build: ./frontend
+    environment:
+      VITE_API_BASE: ${VITE_API_BASE:-/api}
+    depends_on:
+      - api
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/srv
+      - /srv/node_modules
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  postgres-data:
