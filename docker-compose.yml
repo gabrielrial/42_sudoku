@@ -41,6 +41,11 @@ services:
     build: ./frontend
     environment:
       VITE_API_BASE: ${VITE_API_BASE:-/api}
+      # Where Vite's dev proxy forwards /api. Inside this container "localhost"
+      # is the container itself, so the backend must be addressed by its compose
+      # service name. vite.config.ts falls back to localhost:8000, which is what
+      # is correct when running `npm run dev` directly on the host instead.
+      API_TARGET: ${API_TARGET:-http://api:8000}
     depends_on:
       - api
     ports:
