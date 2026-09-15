@@ -67,15 +67,23 @@ Full threat model in `docs/SECURITY.md`. Non-negotiable:
 - The client is hostile. Assume every request is forged and every value tampered with.
 - The backend is authoritative for game state, validation and timing.
 
-## Before every commit
+## Committing
+
+**The developer writes the commits, not the assistant.** Make the change, say
+what changed and why, and stop. Do not run `git add`, `git commit`, `git push`,
+`git rebase`, or anything that rewrites history — not even when the change is
+finished and obviously correct, and not as a convenience. `git status`, `git
+diff` and `git log` are fine and encouraged.
+
+When a change is ready, say plainly which files moved and what a commit message
+might cover. The decision to record it is the developer's.
+
+Before that commit is made, these must hold:
 
 - Tests pass.
 - Formatter and linter have run.
-- A human has read the diff.
+- The developer has read the diff.
 - No secrets, no `.env`, no tokens, no keys.
-
-Never run `git push`, force-push, rewrite shared history, or open a pull request
-unless explicitly asked to.
 
 ## Definition of Done
 
