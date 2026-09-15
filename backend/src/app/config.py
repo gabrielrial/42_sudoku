@@ -39,9 +39,7 @@ class Settings(BaseSettings):
         if not self.is_production:
             return self
         if self.auth_fake_provider_enabled:
-            raise ValueError(
-                "AUTH_FAKE_PROVIDER_ENABLED must be false when APP_ENV is production"
-            )
+            raise ValueError("AUTH_FAKE_PROVIDER_ENABLED must be false when APP_ENV is production")
         if self.secret_key in {"", "change-me", "dev-only-not-a-real-secret"}:
             raise ValueError("SECRET_KEY must be set to a real value in production")
         return self
