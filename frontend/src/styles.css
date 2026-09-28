@@ -1,0 +1,160 @@
+/* Plain CSS, one file. Enough for one board; revisit when Phase 6 adds pages. */
+
+:root {
+  --bg: #f6f6f3;
+  --surface: #ffffff;
+  --ink: #1d1d1b;
+  --ink-soft: #6b6b66;
+  --line: #d4d4cf;
+  --line-strong: #1d1d1b;
+  --accent: #2458c6;
+  --selected: #dbe6fb;
+  --focus: #2458c6;
+
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161615;
+    --surface: #212120;
+    --ink: #ececea;
+    --ink-soft: #a3a39e;
+    --line: #3b3b39;
+    --line-strong: #d8d8d4;
+    --accent: #86a8ff;
+    --selected: #2b3a5c;
+    --focus: #86a8ff;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+.play {
+  /* 16px gutters; the board shrinks to fit a 375px phone. */
+  --board-size: min(100vw - 32px, 460px);
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 24px 16px 32px;
+}
+
+.play__title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+/* --- Board ------------------------------------------------------------------ */
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  width: var(--board-size);
+  aspect-ratio: 1;
+  border: 2px solid var(--line-strong);
+  background: var(--surface);
+}
+
+.cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: calc(var(--board-size) / 9 * 0.55);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.cell:nth-child(9n) {
+  border-right: 0;
+}
+
+.cell:nth-child(n + 73) {
+  border-bottom: 0;
+}
+
+.cell--box-right {
+  border-right: 2px solid var(--line-strong);
+}
+
+.cell--box-bottom {
+  border-bottom: 2px solid var(--line-strong);
+}
+
+.cell--given {
+  color: var(--ink);
+  font-weight: 650;
+  cursor: default;
+}
+
+.cell--selected {
+  background: var(--selected);
+}
+
+.cell:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -3px;
+}
+
+/* --- Number pad --------------------------------------------------------------- */
+
+.pad {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  width: var(--board-size);
+}
+
+.pad__key {
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.pad__key--erase {
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+
+.pad__key:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pad__key:not(:disabled):active {
+  background: var(--selected);
+}
+
+.pad__key:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
