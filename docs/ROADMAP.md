@@ -86,13 +86,14 @@ pass (last Sunday of March and of October).
 ## Phase 4 — Authentication
 
 The 42 OAuth2 flow: redirect, `state` + PKCE, callback, `/v2/me`, local user
-creation, application session, protected endpoints.
+creation, application session as a JWT in a cookie (`DECISIONS.md` D15),
+logout, protected endpoints.
 
 A dev-mode fake identity provider is built in this same phase, so that local
 development, the test suite and CI never call 42.
 
-Exit: a real 42 login works locally; the full test suite passes with no network
-access.
+Exit: a real 42 login works locally; a token is rejected after logout and after
+its user is deleted; the full test suite passes with no network access.
 
 ## Phase 5 — Game API
 

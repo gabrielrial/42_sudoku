@@ -2,7 +2,7 @@
 
 ## Stack (agreed — no justification needed to use these)
 
-**Backend:** Python, FastAPI, PostgreSQL, SQLAlchemy, Alembic, Pydantic, pytest.
+**Backend:** Python, FastAPI, PostgreSQL, SQLAlchemy, Alembic, Pydantic, PyJWT, pytest.
 Type hints everywhere.
 
 **Frontend:** React + TypeScript + Vite. Confirmed (`DECISIONS.md` Q4).
@@ -19,11 +19,11 @@ A modular monolith. One FastAPI application, internally separated by
 responsibility, one database.
 
     Frontend (React)
-        |  HTTP / JSON, session cookie
+        |  HTTP / JSON, JWT in an HttpOnly cookie
         v
     FastAPI application
         |
-        +-- auth        42 OAuth2 flow, sessions, dependencies
+        +-- auth        42 OAuth2 flow, JWT issue/verify, dependencies
         +-- users       local user records
         +-- puzzles     daily puzzle lookup, pre-generation job
         +-- games       sessions, inputs, completion, timing

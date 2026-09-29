@@ -103,6 +103,35 @@ One column on `GameSession` holding the current grid. No `GameMove` table in the
 MVP. A move log can be added later if statistics or anti-cheat actually need
 one; building it now is the premature abstraction the project rules warn about.
 
+### D15 — Login sessions are signed JWTs, not server-side rows
+Decided 2026-09-29, replacing the server-side `app_sessions` table.
+
+After the 42 callback the server issues a JWT and sends it in the session
+cookie (`HttpOnly`, `SameSite=Lax`, `Secure` in production — unchanged). There
+is no session table.
+
+- **Algorithm:** HS256 via PyJWT, signed with `SECRET_KEY`. The algorithm is
+  pinned when decoding (`algorithms=["HS256"]`), never taken from the token
+  header.
+- **Claims:** `sub` (`users.id`), `iat`, `exp`, `ver` (`users.token_version`).
+  Nothing else: the payload is readable by anyone holding the cookie, so it
+  carries no personal data.
+- **Lifetime:** 7 days. No refresh token, no sliding renewal. When it expires
+  the user signs in with 42 again; games survive that (D4).
+- **Revocation:** every authenticated request verifies signature and `exp`,
+  then loads the user by `sub`, which the game endpoints need anyway. No row
+  gives `401`, so deleting a user ends their sessions (Q8). A `ver` that does
+  not match `users.token_version` gives `401`.
+- **Logout** increments `users.token_version`. That signs the user out on
+  every device, not only the current one — the accepted cost of having no
+  per-device session record.
+- **Emergency:** rotating `SECRET_KEY` invalidates every token of every user.
+
+What this gives up, stated so nobody rediscovers it: verification is not
+stateless — one primary-key read per request remains — and a single stolen
+token cannot be revoked on its own, only together with all of that user's
+other sessions.
+
 ### Q1 — The activity rule behind D6 (answered)
 
 | Parameter | Value |

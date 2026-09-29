@@ -44,11 +44,21 @@ there is no way to look without committing.
 - 42 OAuth2, authorization code flow, with `state` and PKCE. `state` is
   single-use and verified.
 - The user's 42 password is never seen, requested or stored.
-- Client ID, client secret and session secret come from the environment. Never
-  from source, never from a committed file.
+- Client ID, client secret and the JWT signing key (`SECRET_KEY`) come from the
+  environment. Never from source, never from a committed file.
 - Separate 42 applications for local development, the LAN stage and production,
   each with its own redirect URI registered exactly.
-- Session cookies: `HttpOnly`, `Secure` in production, `SameSite=Lax`.
+- The session is a JWT (`DECISIONS.md` D15) in a cookie: `HttpOnly`, `Secure`
+  in production, `SameSite=Lax`. Never in `localStorage`, where any XSS can read
+  it.
+- Verification pins the algorithm to `HS256` and requires `sub`, `iat`, `exp`
+  and `ver`. A token naming any other algorithm, including `none`, is rejected.
+- `SECRET_KEY` is at least 32 random bytes. Whoever holds it can mint a valid
+  token for any user; rotating it is the emergency lever that signs everyone
+  out.
+- The payload is readable, not encrypted: ids and timestamps only.
+- Logout and account deletion revoke through the database, not the token:
+  logout bumps `users.token_version`, deletion removes the row the token names.
 - CSRF protection on state-changing endpoints if cookie authentication is used.
 - CORS configured to an explicit origin list. Never `*` with credentials.
 

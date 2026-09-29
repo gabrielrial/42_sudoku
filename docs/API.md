@@ -5,9 +5,11 @@ JSON over HTTP under `/api`. FastAPI, Pydantic models at every boundary.
 ## Conventions
 
 **Authentication** is a session cookie: `HttpOnly`, `SameSite=Lax`, `Secure` in
-production, `Path=/`. It carries a random token whose SHA-256 is stored in
-`app_sessions`. Every endpoint below except the auth ones requires it and answers
-`401` without it.
+production, `Path=/`. It carries a JWT signed with `SECRET_KEY` (HS256; claims
+`sub`, `iat`, `exp`, `ver` — `DECISIONS.md` D15). The server checks signature
+and expiry, loads the user named by `sub`, and compares `ver` with
+`users.token_version`. Every endpoint below except the auth ones requires it and
+answers `401` without it or when any of those checks fails.
 
 **Authorisation** is separate and always checked: a game endpoint verifies the
 session belongs to the calling user, and answers `404` — not `403` — when it does
@@ -44,8 +46,8 @@ them in `oauth_states`, and answers `302` to 42's authorize endpoint. Optional
 
 Validates and **deletes** the `state` row (single use, ten-minute expiry),
 exchanges the code with 42 using the PKCE verifier, fetches `/v2/me`, upserts
-the user on `intra_id`, discards the 42 token (D11), creates an `app_sessions`
-row, sets the cookie, and answers `302` to the front end.
+the user on `intra_id`, discards the 42 token (D11), issues a JWT (D15), sets
+the cookie, and answers `302` to the front end.
 
 Failure — bad state, expired state, denied consent, 42 unreachable — redirects
 to the front end with an error code in the query string. No stack traces, no
@@ -53,7 +55,9 @@ token values, ever.
 
 ### `POST /api/auth/logout`
 
-Deletes the `app_sessions` row and clears the cookie. `204`. Idempotent.
+Increments `users.token_version` — invalidating the user's tokens on every
+device — and clears the cookie. `204`. Idempotent: without a valid cookie it
+only clears the cookie.
 
 ### `GET /api/me`
 

@@ -11,7 +11,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sudoku}
       POSTGRES_DB: ${POSTGRES_DB:-sudoku}
     ports:
-      - "${POSTGRES_PORT:-5442}:5442"
+      # Host side bound to 127.0.0.1: reachable from this machine only, not the LAN.
+      - "127.0.0.1:${POSTGRES_PORT:-5442}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -25,14 +26,15 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-development}
       SECRET_KEY: ${SECRET_KEY:-dev-only-not-a-real-secret}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sudoku}:${POSTGRES_PASSWORD:-sudoku}@db:5442/${POSTGRES_DB:-sudoku}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sudoku}:${POSTGRES_PASSWORD:-sudoku}@db:5432/${POSTGRES_DB:-sudoku}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
       AUTH_FAKE_PROVIDER_ENABLED: ${AUTH_FAKE_PROVIDER_ENABLED:-true}
     depends_on:
       db:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      # Left: port on this machine (API_PORT in .env). Right: uvicorn inside the container.
+      - "${API_PORT:-8000}:8000"
     volumes:
       - ./backend:/srv
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
