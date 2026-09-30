@@ -7,7 +7,6 @@ from app.config import get_settings
 from app.errors import register_error_handlers
 from app.api.routers import health
 from app.api.routers.users import router as user_router
-from app.database.conf.alch_conf import Base, engine
 
 
 def create_app() -> FastAPI:
@@ -21,8 +20,6 @@ def create_app() -> FastAPI:
         docs_url=None if settings.is_production else "/api/docs",
         openapi_url=None if settings.is_production else "/api/openapi.json",
     )
-
-    Base.metadata.create_all(bind=engine)
 
     app.add_middleware(
         CORSMiddleware,
