@@ -39,7 +39,7 @@ def create_access_token(data: dict):
     payload = data.copy()
 
     payload["exp"] = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.access_token_duration
+        minutes=settings.access_token_minutes
     )
 
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
