@@ -3,8 +3,9 @@
 The database URL comes from the application settings, so it is read from the
 environment and never stored in alembic.ini.
 
-``target_metadata`` is None until Phase 3 defines the models; autogenerate is
-not usable before then, and its output is reviewed by hand when it is.
+``target_metadata`` is the models' metadata, so ``alembic revision
+--autogenerate`` can diff it against the database. Autogenerate's output is a
+draft: it is always reviewed by hand before it is committed.
 """
 
 from logging.config import fileConfig
@@ -12,7 +13,9 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+import app.database.models  # noqa: F401  (registers every table in Base.metadata)
 from app.config import get_settings
+from app.database.conf.alch_conf import Base
 
 config = context.config
 if config.config_file_name is not None:
@@ -20,7 +23,7 @@ if config.config_file_name is not None:
 
 config.set_main_option("sqlalchemy.url", get_settings().database_url)
 
-target_metadata = None
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
