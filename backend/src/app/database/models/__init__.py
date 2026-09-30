@@ -6,6 +6,7 @@ imported. Alembic's autogenerate compares that metadata with the database, so
 table Alembic cannot see. Add each new model below.
 """
 
+from app.database.models.refresh_tokens import RefreshToken
 from app.database.models.users import User
 
-__all__ = ["User"]
+__all__ = ["RefreshToken", "User"]
