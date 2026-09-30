@@ -1,9 +1,13 @@
 import os
 from collections.abc import Iterator
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
+
+if TYPE_CHECKING:
+    from app.database.models.users import User
 
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("SECRET_KEY", "test-only-not-a-real-secret")
@@ -78,3 +82,14 @@ def db(db_engine: Engine) -> Iterator[Session]:
         session.close()
         outer.rollback()
         connection.close()
+
+
+@pytest.fixture
+def user(db: Session) -> "User":
+    """One saved user, for tests that need somebody to own a token."""
+    from app.database.models.users import User
+
+    user = User(username="ana", password_hash="not-a-real-hash")
+    db.add(user)
+    db.commit()
+    return user

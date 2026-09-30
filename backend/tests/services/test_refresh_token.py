@@ -50,14 +50,6 @@ def _assert_rejected(db: Session, raw: str) -> None:
     assert exc.value.status_code == 401
 
 
-@pytest.fixture
-def user(db: Session) -> User:
-    user = User(username="ana", password_hash="not-a-real-hash")
-    db.add(user)
-    db.commit()
-    return user
-
-
 # --- issue -------------------------------------------------------------------
 
 
