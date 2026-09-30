@@ -1,4 +1,4 @@
-"""Refresh tokens: issuing and rotating (``app/services/refresh_token.py``).
+"""Refresh tokens: issuing, rotating and revoking (``app/services/refresh_token.py``).
 
 Every test runs against PostgreSQL through the ``db`` fixture, inside a
 transaction that is rolled back afterwards.
@@ -15,7 +15,11 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database.models.refresh_tokens import RefreshToken
 from app.database.models.users import User
-from app.services.refresh_token import issue_refresh_token, rotate_refresh_token
+from app.services.refresh_token import (
+    issue_refresh_token,
+    revoke_refresh_token,
+    rotate_refresh_token,
+)
 
 pytestmark = pytest.mark.db
 
@@ -168,3 +172,45 @@ def test_revoking_one_family_leaves_other_devices_alone(db: Session, user: User)
 
     user_id, _ = rotate_refresh_token(db, phone)  # the phone still works
     assert user_id == user.id
+
+
+# --- revoke (logout) -----------------------------------------------------------
+
+
+def test_revoke_deletes_the_whole_family(db: Session, user: User) -> None:
+    old = _login(db, user)
+    _, current = rotate_refresh_token(db, old)
+
+    revoke_refresh_token(db, current)
+
+    assert _row(db, current) is None
+    assert _row(db, old) is None  # the sealed tokens of that device go too
+    _assert_rejected(db, current)
+
+
+def test_revoke_leaves_other_devices_alone(db: Session, user: User) -> None:
+    laptop = _login(db, user)
+    phone = _login(db, user)
+
+    revoke_refresh_token(db, laptop)
+
+    assert _row(db, phone) is not None
+    user_id, _ = rotate_refresh_token(db, phone)
+    assert user_id == user.id
+
+
+def test_revoke_with_an_unknown_token_does_nothing(db: Session, user: User) -> None:
+    raw = _login(db, user)
+
+    revoke_refresh_token(db, "not-a-token-we-issued")  # must not raise
+
+    assert _row(db, raw) is not None
+
+
+def test_revoking_twice_is_harmless(db: Session, user: User) -> None:
+    raw = _login(db, user)
+
+    revoke_refresh_token(db, raw)
+    revoke_refresh_token(db, raw)  # a second logout with the same cookie
+
+    assert _row(db, raw) is None
