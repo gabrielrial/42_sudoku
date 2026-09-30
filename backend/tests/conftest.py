@@ -7,6 +7,8 @@ from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
+
     from app.database.models.users import User
 
 os.environ.setdefault("APP_ENV", "test")
@@ -93,3 +95,21 @@ def user(db: Session) -> "User":
     db.add(user)
     db.commit()
     return user
+
+
+@pytest.fixture
+def db_client(db: Session) -> Iterator["TestClient"]:
+    """A test client whose endpoints use the test's own ``db`` session.
+
+    ``get_db`` is overridden, so whatever an endpoint writes is visible to the
+    test, and is rolled back with everything else when the test ends.
+    """
+    from fastapi.testclient import TestClient
+
+    from app.database.conf.dependencies import get_db
+    from app.main import create_app
+
+    app = create_app()
+    app.dependency_overrides[get_db] = lambda: db
+    with TestClient(app) as c:
+        yield c
