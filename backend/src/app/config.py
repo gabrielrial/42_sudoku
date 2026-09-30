@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # Dev-only fake identity provider, so local work and CI never call 42.
     auth_fake_provider_enabled: bool = False
 
-    access_token_duration: int = 7
+    access_token_minutes: int = 15
 
     @property
     def is_production(self) -> bool:
