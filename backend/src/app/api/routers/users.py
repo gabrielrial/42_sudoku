@@ -22,9 +22,6 @@ def get_users(db: Session = Depends(get_db)):
 def login(response: Response, form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == form.username).first()
 
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-
     password = verify_password(form.password, user.password_hash if user else DUMMY_HASH)
     if user is None or not password:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
