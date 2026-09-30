@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     auth_fake_provider_enabled: bool = False
 
     access_token_minutes: int = 15
+    refresh_token_days: int = 7
 
     @property
     def is_production(self) -> bool:
