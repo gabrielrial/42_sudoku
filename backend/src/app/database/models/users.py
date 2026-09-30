@@ -1,5 +1,7 @@
+from sqlalchemy import Column, DateTime, Integer, String, func
+
 from app.database.conf.alch_conf import Base
-from sqlalchemy import CheckConstraint, String,Column, DateTime, ForeignKey, Integer, func
+
 
 class User(Base):
     __tablename__ = "users"

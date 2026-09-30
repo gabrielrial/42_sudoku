@@ -8,9 +8,7 @@ from sudoku.solver import count_solutions, random_full_grid, unique_solution
 EMPTY = "0" * 81
 # A valid complete grid: each row is the one above shifted by 3 (or by 1 at
 # each band), which satisfies every row, column and box.
-FULL = "".join(
-    "".join(str((r * 3 + r // 3 + c) % 9 + 1) for c in range(9)) for r in range(9)
-)
+FULL = "".join("".join(str((r * 3 + r // 3 + c) % 9 + 1) for c in range(9)) for r in range(9))
 
 
 def test_the_reference_full_grid_is_valid():

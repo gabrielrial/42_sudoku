@@ -7,9 +7,7 @@ from sudoku import grader
 from sudoku.board import Board
 from sudoku.grader import LADDER, Step, Tier, grade, solve
 
-FULL = "".join(
-    "".join(str((r * 3 + r // 3 + c) % 9 + 1) for c in range(9)) for r in range(9)
-)
+FULL = "".join("".join(str((r * 3 + r // 3 + c) % 9 + 1) for c in range(9)) for r in range(9))
 
 
 def test_the_ladder_is_the_one_in_the_specification():

@@ -5,8 +5,6 @@ database exists. ``/api/health/db`` is the one that proves compose wired the
 services together.
 """
 
-from typing import Annotated
-
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session

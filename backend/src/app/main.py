@@ -3,10 +3,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import get_settings
-from app.errors import register_error_handlers
 from app.api.routers import health
 from app.api.routers.users import router as user_router
+from app.config import get_settings
+from app.errors import register_error_handlers
 
 
 def create_app() -> FastAPI:
@@ -31,7 +31,7 @@ def create_app() -> FastAPI:
 
     register_error_handlers(app)
     app.include_router(health.router, prefix="/api")
-    app.include_router(user_router, prefix="/api") 
+    app.include_router(user_router, prefix="/api")
 
     return app
 

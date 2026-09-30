@@ -1,10 +1,12 @@
+from datetime import UTC, datetime, timedelta
+
 import jwt
-from datetime import datetime, timezone, timedelta
-from sqlalchemy.orm import Session
-from jwt import InvalidTokenError
-from app.services.user import get_user_by_username
-from app.config import get_settings
 from fastapi import HTTPException
+from jwt import InvalidTokenError
+from sqlalchemy.orm import Session
+
+from app.config import get_settings
+from app.services.user import get_user_by_username
 
 ALGORITHM = "HS256"
 
@@ -15,6 +17,7 @@ credentials_exception = HTTPException(
 )
 
 settings = get_settings()
+
 
 def _user_from_token(token: str, db: Session):
     try:
@@ -35,11 +38,10 @@ def _user_from_token(token: str, db: Session):
 
     return user
 
+
 def create_access_token(data: dict):
     payload = data.copy()
 
-    payload["exp"] = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.access_token_minutes
-    )
+    payload["exp"] = datetime.now(UTC) + timedelta(minutes=settings.access_token_minutes)
 
     return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
