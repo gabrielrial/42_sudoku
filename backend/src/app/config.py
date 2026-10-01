@@ -11,7 +11,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: Environment = "development"
-    secret_key: str = ""
+
+    # Generate with: python3 -c "import secrets; print(secrets.token_hex(32))"
+    secret_key: str
 
     database_url: str
     frontend_origin: str = "http://localhost:5173"
@@ -39,6 +41,8 @@ class Settings(BaseSettings):
             raise ValueError("AUTH_FAKE_PROVIDER_ENABLED must be false when APP_ENV is production")
         if self.secret_key in {"", "change-me", "dev-only-not-a-real-secret"}:
             raise ValueError("SECRET_KEY must be set to a real value in production")
+        if len(self.secret_key) < 32:
+            raise ValueError("SECRET_KEY must be at least 32 characters in production")
         return self
 
 
