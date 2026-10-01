@@ -29,6 +29,7 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sudoku}:${POSTGRES_PASSWORD:-sudoku}@db:5432/${POSTGRES_DB:-sudoku}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
       AUTH_FAKE_PROVIDER_ENABLED: ${AUTH_FAKE_PROVIDER_ENABLED:-true}
+      LOGIN_ATTEMPTS_PER_MINUTE: ${LOGIN_ATTEMPTS_PER_MINUTE:-5}
     depends_on:
       db:
         condition: service_healthy
