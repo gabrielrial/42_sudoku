@@ -152,3 +152,61 @@ def test_concurrent_requests_cannot_overdraw_the_bucket() -> None:
         thread.join()
 
     assert results.count(True) == CAPACITY
+
+
+# --- forgetting full buckets -------------------------------------------------
+# A full bucket behaves exactly like a missing one, so the limiter drops full
+# buckets every ``capacity / refill_per_second`` seconds (60 s here: the time an
+# empty bucket takes to fill). Memory then holds only recently active keys.
+
+SWEEP_EVERY = CAPACITY / PER_SECOND  # 60 seconds
+
+
+def test_full_buckets_are_forgotten_after_the_sweep_interval() -> None:
+    clock = FakeClock()
+    limiter = _limiter(clock)
+    for i in range(100):
+        limiter.allow(f"10.0.0.{i}")
+    assert len(limiter) == 100
+
+    clock.advance(SWEEP_EVERY)
+    limiter.allow("1.2.3.4")  # any call may sweep
+
+    assert len(limiter) == 1  # only the newcomer
+
+
+def test_nothing_is_forgotten_before_the_sweep_interval() -> None:
+    clock = FakeClock()
+    limiter = _limiter(clock)
+    for i in range(100):
+        limiter.allow(f"10.0.0.{i}")
+
+    clock.advance(SWEEP_EVERY - 1)
+    limiter.allow("1.2.3.4")
+
+    assert len(limiter) == 101
+
+
+def test_a_bucket_still_refilling_is_kept() -> None:
+    # Forgetting it would hand that key a full bucket: free attempts.
+    clock = FakeClock()
+    limiter = _limiter(clock)
+    clock.advance(SWEEP_EVERY / 2)
+    _allowed(limiter, "1.2.3.4", CAPACITY)  # emptied half-way to the sweep
+
+    clock.advance(SWEEP_EVERY / 2)
+    limiter.allow("5.6.7.8")  # sweeps; 1.2.3.4 holds only 2.5 tokens
+
+    assert len(limiter) == 2
+    assert _allowed(limiter, "1.2.3.4", CAPACITY) == 2
+
+
+def test_a_forgotten_key_starts_again_with_a_full_bucket() -> None:
+    clock = FakeClock()
+    limiter = _limiter(clock)
+    _allowed(limiter, "1.2.3.4", CAPACITY)
+
+    clock.advance(SWEEP_EVERY)
+    limiter.allow("5.6.7.8")  # sweeps 1.2.3.4, which had refilled
+
+    assert _allowed(limiter, "1.2.3.4", CAPACITY + 1) == CAPACITY

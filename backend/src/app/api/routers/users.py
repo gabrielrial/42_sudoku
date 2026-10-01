@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.cookies import set_auth_cookies
 from app.api.dependencies import get_current_user
+from app.api.rate_limits import limit_login_attempts
 from app.database.conf.dependencies import get_db
 from app.database.models.users import User
 from app.database.schema.user import PASSWORD_MAX_LENGTH, UserCreate, UserPublic
@@ -21,7 +22,7 @@ def read_me(current_user: Annotated[User, Depends(get_current_user)]):
     return current_user
 
 
-@router.post("/login", response_model=UserPublic)
+@router.post("/login", response_model=UserPublic, dependencies=[Depends(limit_login_attempts)])
 def login(
     response: Response,
     form: OAuth2PasswordRequestForm = Depends(),

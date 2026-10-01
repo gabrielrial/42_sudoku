@@ -29,6 +29,8 @@ class Settings(BaseSettings):
     access_token_minutes: int = 15
     refresh_token_days: int = 7
 
+    login_attempts_per_minute: int = 5
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"

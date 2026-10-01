@@ -9,6 +9,7 @@ from app.api.routers.auth import router as auth_router
 from app.api.routers.users import router as user_router
 from app.config import get_settings
 from app.errors import register_error_handlers
+from app.services.rate_limit import RateLimiter
 
 
 def create_app() -> FastAPI:
@@ -22,6 +23,11 @@ def create_app() -> FastAPI:
         docs_url=None if settings.is_production else "/api/docs",
         openapi_url=None if settings.is_production else "/api/openapi.json",
         dependencies=[Depends(require_frontend_origin)],
+    )
+
+    app.state.login_limiter = RateLimiter(
+        capacity=settings.login_attempts_per_minute,
+        refill_per_second=settings.login_attempts_per_minute / 60,
     )
 
     app.add_middleware(
