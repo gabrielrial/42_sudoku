@@ -29,6 +29,18 @@ def test_login_answers_with_the_user_and_no_token(db_client: TestClient, ana: Us
     assert response.json() == {"id": ana.id, "username": "ana"}
 
 
+@pytest.mark.parametrize("username", ["Ana", "ANA", "aNa"])
+def test_login_ignores_the_case_of_the_username(
+    db_client: TestClient, ana: User, username: str
+) -> None:
+    # Usernames are stored in lower case (see UserCreate); the login lowers
+    # what it is given in the same way.
+    response = _login(db_client, username, PASSWORD)
+
+    assert response.status_code == 200
+    assert response.json() == {"id": ana.id, "username": "ana"}
+
+
 def test_login_sets_the_access_cookie(db_client: TestClient, ana: User) -> None:
     cookie = _cookies(_login(db_client, "ana", PASSWORD))["access_token"]
 
@@ -73,6 +85,13 @@ def test_the_refresh_cookie_holds_a_token_saved_in_the_database(
 
 def test_wrong_password_is_rejected_without_cookies(db_client: TestClient, ana: User) -> None:
     response = _login(db_client, "ana", "not-the-password")
+
+    assert response.status_code == 401
+    assert _cookies(response) == {}
+
+
+def test_the_password_is_case_sensitive(db_client: TestClient, ana: User) -> None:
+    response = _login(db_client, "ana", PASSWORD.upper())
 
     assert response.status_code == 401
     assert _cookies(response) == {}

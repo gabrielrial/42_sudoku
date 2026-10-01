@@ -8,7 +8,7 @@ from app.api.cookies import set_auth_cookies
 from app.api.dependencies import get_current_user
 from app.database.conf.dependencies import get_db
 from app.database.models.users import User
-from app.database.schema.user import UserCreate, UserPublic
+from app.database.schema.user import UserCreate, UserPublic, PASSWORD_MAX_LENGTH
 from app.services.auth import create_access_token
 from app.services.refresh_token import issue_refresh_token
 from app.utils.security import DUMMY_HASH, hash_password, verify_password
@@ -27,7 +27,11 @@ def login(
     form: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
-    user = db.query(User).filter(User.username == form.username).first()
+    user = db.query(User).filter(User.username == form.username.lower()).first()
+
+    if len(form.password) > PASSWORD_MAX_LENGTH:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
 
     password = verify_password(form.password, user.password_hash if user else DUMMY_HASH)
     if user is None or not password:
