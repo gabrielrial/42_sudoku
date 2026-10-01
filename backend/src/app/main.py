@@ -1,8 +1,9 @@
 """FastAPI application factory."""
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.csrf import require_frontend_origin
 from app.api.routers import health
 from app.api.routers.auth import router as auth_router
 from app.api.routers.users import router as user_router
@@ -20,6 +21,7 @@ def create_app() -> FastAPI:
         # Harmless in development, noise in production.
         docs_url=None if settings.is_production else "/api/docs",
         openapi_url=None if settings.is_production else "/api/openapi.json",
+        dependencies=[Depends(require_frontend_origin)],
     )
 
     app.add_middleware(

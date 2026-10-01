@@ -18,13 +18,23 @@ os.environ.setdefault(
 )
 
 
+def _browser_headers() -> dict[str, str]:
+    """What the front end's browser sends: state-changing requests need ``Origin``.
+
+    Tests of the origin check remove or replace it per request.
+    """
+    from app.config import get_settings
+
+    return {"Origin": get_settings().frontend_origin}
+
+
 @pytest.fixture
 def client():
     from fastapi.testclient import TestClient
 
     from app.main import create_app
 
-    with TestClient(create_app()) as c:
+    with TestClient(create_app(), headers=_browser_headers()) as c:
         yield c
 
 
@@ -111,5 +121,5 @@ def db_client(db: Session) -> Iterator["TestClient"]:
 
     app = create_app()
     app.dependency_overrides[get_db] = lambda: db
-    with TestClient(app) as c:
+    with TestClient(app, headers=_browser_headers()) as c:
         yield c
