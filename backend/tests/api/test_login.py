@@ -6,9 +6,11 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from app.api.routers import users as users_router
 from app.config import get_settings
 from app.database.models.refresh_tokens import RefreshToken
 from app.database.models.users import User
+from app.database.schema.user import PASSWORD_MAX_LENGTH
 from app.services.auth import user_from_access_token
 from tests.api.helpers import PASSWORD
 from tests.api.helpers import login as _login
@@ -120,3 +122,45 @@ def test_a_failed_login_saves_no_refresh_token(
     _login(db_client, "ana", "not-the-password")
 
     assert db.query(RefreshToken).count() == 0
+
+
+# --- password length ---------------------------------------------------------
+# argon2 hashes the whole password, so the login refuses long ones before
+# hashing anything: otherwise anybody could keep the CPU busy without an account.
+
+
+def _spy_on_verify_password(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Replace the login's ``verify_password``; return the passwords it receives."""
+    received: list[str] = []
+
+    def spy(password: str, password_hash: str) -> bool:
+        received.append(password)
+        return False
+
+    monkeypatch.setattr(users_router, "verify_password", spy)
+    return received
+
+
+@pytest.mark.parametrize("username", ["ana", "nobody"])
+def test_a_password_over_the_limit_is_401_without_hashing(
+    db_client: TestClient, ana: User, monkeypatch: pytest.MonkeyPatch, username: str
+) -> None:
+    received = _spy_on_verify_password(monkeypatch)
+
+    response = _login(db_client, username, "x" * (PASSWORD_MAX_LENGTH + 1))
+
+    assert response.status_code == 401
+    assert _cookies(response) == {}
+    assert received == []
+
+
+def test_a_password_at_the_limit_is_still_checked(
+    db_client: TestClient, ana: User, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    received = _spy_on_verify_password(monkeypatch)
+    password = "x" * PASSWORD_MAX_LENGTH
+
+    response = _login(db_client, "ana", password)
+
+    assert response.status_code == 401  # wrong password, but it was hashed
+    assert received == [password]

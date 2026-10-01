@@ -4,6 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 PASSWORD_MAX_LENGTH = 128
 
+
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=32, pattern=r"^[a-z0-9_-]+$")
     password: str = Field(min_length=8, max_length=PASSWORD_MAX_LENGTH)
