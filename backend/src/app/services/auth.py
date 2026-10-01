@@ -37,7 +37,6 @@ def user_from_access_token(db: Session, token: str) -> User:
     return user
 
 
-
 def create_access_token(user: User) -> str:
     now = datetime.now(UTC)
     payload = {

@@ -4,50 +4,19 @@ import hashlib
 
 import pytest
 from fastapi.testclient import TestClient
-from httpx import Response
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database.models.refresh_tokens import RefreshToken
 from app.database.models.users import User
 from app.services.auth import user_from_access_token
-from app.utils.security import hash_password
+from tests.api.helpers import PASSWORD
+from tests.api.helpers import login as _login
+from tests.api.helpers import set_cookies as _cookies
 
 pytestmark = pytest.mark.db
 
-PASSWORD = "correct-horse-battery-staple"
 settings = get_settings()
-
-
-@pytest.fixture
-def ana(db: Session) -> User:
-    user = User(username="ana", password_hash=hash_password(PASSWORD))
-    db.add(user)
-    db.commit()
-    return user
-
-
-def _login(client: TestClient, username: str, password: str) -> Response:
-    # OAuth2PasswordRequestForm reads a form, not JSON.
-    return client.post("/api/users/login", data={"username": username, "password": password})
-
-
-def _cookies(response: Response) -> dict[str, dict[str, str]]:
-    """Each Set-Cookie header as {cookie name: {attribute: value}}.
-
-    The cookie's own value is under "value". Attribute names are lower-cased;
-    flags such as HttpOnly map to "".
-    """
-    cookies: dict[str, dict[str, str]] = {}
-    for header in response.headers.get_list("set-cookie"):
-        first, *attributes = (part.strip() for part in header.split(";"))
-        name, value = first.split("=", 1)
-        parsed = {"value": value}
-        for attribute in attributes:
-            key, _, attr_value = attribute.partition("=")
-            parsed[key.lower()] = attr_value
-        cookies[name] = parsed
-    return cookies
 
 
 # --- success -----------------------------------------------------------------
@@ -116,7 +85,6 @@ def test_unknown_user_is_rejected_without_cookies(db_client: TestClient) -> None
     assert _cookies(response) == {}
 
 
-
 def test_the_dummy_hash_password_does_not_log_in_a_missing_user(db_client: TestClient) -> None:
     # For unknown users the login checks the password against DUMMY_HASH, the
     # hash of this string, so that both paths take the same time. The match
@@ -125,6 +93,7 @@ def test_the_dummy_hash_password_does_not_log_in_a_missing_user(db_client: TestC
 
     assert response.status_code == 401
     assert _cookies(response) == {}
+
 
 def test_a_failed_login_saves_no_refresh_token(
     db: Session, db_client: TestClient, ana: User

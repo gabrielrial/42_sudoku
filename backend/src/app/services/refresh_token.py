@@ -24,9 +24,7 @@ def _hash_token(raw: str) -> str:
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def issue_refresh_token(
-    db: Session, user_id: int, family_id: uuid.UUID | None = None
-) -> str:
+def issue_refresh_token(db: Session, user_id: int, family_id: uuid.UUID | None = None) -> str:
     raw = _random_value()
     family_id = family_id or uuid.uuid4()
     refresh_token = RefreshToken(
@@ -54,9 +52,7 @@ def rotate_refresh_token(db: Session, raw: str) -> tuple[int, str]:
         )
 
     if token.used_at is not None:
-        db.query(RefreshToken).filter(
-            RefreshToken.family_id == token.family_id
-        ).delete()
+        db.query(RefreshToken).filter(RefreshToken.family_id == token.family_id).delete()
         db.commit()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
@@ -77,10 +73,10 @@ def rotate_refresh_token(db: Session, raw: str) -> tuple[int, str]:
 
 def revoke_refresh_token(db: Session, raw: str) -> None:
     token = (
-            db.query(RefreshToken)
-            .filter(RefreshToken.token_hash == _hash_token(raw))
-            .with_for_update()
-            .first()
+        db.query(RefreshToken)
+        .filter(RefreshToken.token_hash == _hash_token(raw))
+        .with_for_update()
+        .first()
     )
     if token:
         db.query(RefreshToken).filter(RefreshToken.family_id == token.family_id).delete()

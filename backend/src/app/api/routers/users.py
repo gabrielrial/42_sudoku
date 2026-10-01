@@ -1,38 +1,44 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
+from app.api.cookies import set_auth_cookies
+from app.api.dependencies import get_current_user
 from app.database.conf.dependencies import get_db
 from app.database.models.users import User
 from app.database.schema.user import UserCreate, UserPublic
 from app.services.auth import create_access_token
-from app.utils.security import hash_password, verify_password, DUMMY_HASH
-from app.api.cookies import set_auth_cookies
 from app.services.refresh_token import issue_refresh_token
+from app.utils.security import DUMMY_HASH, hash_password, verify_password
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 
-@router.get("/")
-def get_users(db: Session = Depends(get_db)):
-    return {"status": "ok"}
+@router.get("/me", response_model=UserPublic)
+def read_me(current_user: Annotated[User, Depends(get_current_user)]):
+    return current_user
 
 
 @router.post("/login", response_model=UserPublic)
-def login(response: Response, form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+def login(
+    response: Response,
+    form: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
     user = db.query(User).filter(User.username == form.username).first()
 
     password = verify_password(form.password, user.password_hash if user else DUMMY_HASH)
     if user is None or not password:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
-    
+
     access_token = create_access_token(user)
-    refresh_token = issue_refresh_token(db,user.id)
+    refresh_token = issue_refresh_token(db, user.id)
     db.commit()
 
-    set_auth_cookies(response , access_token, refresh_token)
+    set_auth_cookies(response, access_token, refresh_token)
     return user
-    
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED, response_model=UserPublic)
