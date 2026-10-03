@@ -5,6 +5,8 @@ database exists. ``/api/health/db`` is the one that proves compose wired the
 services together.
 """
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -22,7 +24,7 @@ def health() -> dict[str, str]:
 
 
 @router.get("/db")
-def health_db(session: Session = Depends(get_db)) -> dict[str, str]:
+def health_db(session: Annotated[Session, Depends(get_db)]) -> dict[str, str]:
     try:
         session.execute(text("SELECT 1"))
     except Exception as exc:  # pragma: no cover - exercised only when the DB is down

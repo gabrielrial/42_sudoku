@@ -25,9 +25,8 @@ def read_me(current_user: Annotated[User, Depends(get_current_user)]):
 @router.post("/login", response_model=UserPublic, dependencies=[Depends(limit_login_attempts)])
 def login(
     response: Response,
-    form: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db),
-):
+    form: Annotated[OAuth2PasswordRequestForm, Depends()], 
+    db: Annotated[Session, Depends(get_db)]):
     user = db.query(User).filter(User.username == form.username.lower()).first()
 
     if len(form.password) > PASSWORD_MAX_LENGTH:
@@ -46,7 +45,7 @@ def login(
 
 
 @router.post("/signup", status_code=status.HTTP_201_CREATED, response_model=UserPublic)
-def signup(user: UserCreate, db: Session = Depends(get_db)):
+def signup(user: UserCreate, db: Annotated[Session, Depends(get_db)]):
     db_user = db.query(User).filter(User.username == user.username).first()
 
     if db_user:
