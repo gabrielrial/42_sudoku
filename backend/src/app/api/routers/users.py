@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -10,11 +10,18 @@ from app.api.rate_limits import limit_login_attempts
 from app.database.conf.dependencies import get_db
 from app.database.models.users import User
 from app.database.schema.user import PASSWORD_MAX_LENGTH, UserCreate, UserPublic
+from app.errors import APIError
 from app.services.auth import create_access_token
 from app.services.refresh_token import issue_refresh_token
 from app.utils.security import DUMMY_HASH, hash_password, verify_password
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+def _invalid_credentials() -> APIError:
+    return APIError(
+        "invalid_credentials", "Invalid username or password.", status.HTTP_401_UNAUTHORIZED
+    )
 
 
 @router.get("/me", response_model=UserPublic)
@@ -31,11 +38,11 @@ def login(
     user = db.query(User).filter(User.username == form.username.lower()).first()
 
     if len(form.password) > PASSWORD_MAX_LENGTH:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise _invalid_credentials()
 
     password = verify_password(form.password, user.password_hash if user else DUMMY_HASH)
     if user is None or not password:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise _invalid_credentials()
 
     access_token = create_access_token(user)
     refresh_token = issue_refresh_token(db, user.id)
@@ -50,7 +57,7 @@ def signup(user: UserCreate, db: Annotated[Session, Depends(get_db)]) -> User:
     db_user = db.query(User).filter(User.username == user.username).first()
 
     if db_user:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
+        raise APIError("username_taken", "Username already taken.", status.HTTP_409_CONFLICT)
 
     new_user = User(username=user.username, password_hash=hash_password(user.password))
     db.add(new_user)

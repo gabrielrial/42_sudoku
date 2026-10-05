@@ -15,11 +15,11 @@ from datetime import UTC, datetime
 
 import jwt
 import pytest
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database.models.users import User
+from app.errors import APIError
 from app.services.auth import create_access_token, user_from_access_token
 
 settings = get_settings()
@@ -117,6 +117,7 @@ REJECTED: dict[str, Callable[[int], str]] = {
 @pytest.mark.db
 @pytest.mark.parametrize("make_token", REJECTED.values(), ids=REJECTED.keys())
 def test_bad_tokens_are_rejected(db: Session, user: User, make_token: Callable[[int], str]) -> None:
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(APIError) as exc:
         user_from_access_token(db, make_token(user.id))
-    assert exc.value.status_code == 401
+    assert exc.value.http_status == 401
+    assert exc.value.code == "not_authenticated"

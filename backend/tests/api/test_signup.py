@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.database.models.users import User
 from app.utils.security import verify_password
-from tests.api.helpers import PASSWORD
+from tests.api.helpers import PASSWORD, error_code
 
 pytestmark = pytest.mark.db
 
@@ -82,6 +82,7 @@ def test_signup_with_a_taken_username_is_409(db: Session, db_client: TestClient,
     response = _signup(db_client, "ana")
 
     assert response.status_code == 409
+    assert error_code(response) == "username_taken"
     assert _count_users(db) == 1
 
 
@@ -91,6 +92,7 @@ def test_signup_with_a_taken_username_in_other_case_is_409(
     response = _signup(db_client, "ANA")
 
     assert response.status_code == 409
+    assert error_code(response) == "username_taken"
     assert _count_users(db) == 1
 
 

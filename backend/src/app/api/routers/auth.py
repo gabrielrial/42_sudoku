@@ -7,7 +7,7 @@ from app.api.cookies import REFRESH_COOKIE, clear_auth_cookies, set_auth_cookies
 from app.database.conf.dependencies import get_db
 from app.database.models.users import User
 from app.database.schema.user import UserPublic
-from app.services.auth import create_access_token, credentials_exception
+from app.services.auth import create_access_token, not_authenticated
 from app.services.refresh_token import revoke_refresh_token, rotate_refresh_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -20,13 +20,13 @@ def refresh(
     refresh_token: Annotated[str | None, Cookie(alias=REFRESH_COOKIE)] = None,
 ) -> User:
     if not refresh_token:
-        raise credentials_exception
+        raise not_authenticated()
 
     user_id, new_refresh = rotate_refresh_token(db, refresh_token)
 
     user = db.get(User, user_id)
     if user is None:
-        raise credentials_exception
+        raise not_authenticated()
 
     access_token = create_access_token(user)
     set_auth_cookies(response, access_token, new_refresh)

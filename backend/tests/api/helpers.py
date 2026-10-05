@@ -11,6 +11,13 @@ def login(client: TestClient, username: str, password: str) -> Response:
     return client.post("/api/users/login", data={"username": username, "password": password})
 
 
+def error_code(response: Response) -> str:
+    """The ``code`` of an error answered in the common envelope (``API.md``, "Errors")."""
+    code = response.json()["error"]["code"]
+    assert isinstance(code, str)
+    return code
+
+
 def set_cookies(response: Response) -> dict[str, dict[str, str]]:
     """Each Set-Cookie header as {cookie name: {attribute: value}}.
 

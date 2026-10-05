@@ -9,12 +9,12 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database.models.refresh_tokens import RefreshToken
 from app.database.models.users import User
+from app.errors import APIError
 from app.services.refresh_token import (
     issue_refresh_token,
     revoke_refresh_token,
@@ -45,9 +45,10 @@ def _login(db: Session, user: User) -> str:
 
 
 def _assert_rejected(db: Session, raw: str) -> None:
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(APIError) as exc:
         rotate_refresh_token(db, raw)
-    assert exc.value.status_code == 401
+    assert exc.value.http_status == 401
+    assert exc.value.code == "not_authenticated"
 
 
 # --- issue -------------------------------------------------------------------

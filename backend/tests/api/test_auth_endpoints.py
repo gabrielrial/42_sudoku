@@ -7,9 +7,10 @@ test needs to send something specific (an old token, garbage, nothing).
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import Response
 
 from app.database.models.users import User
-from tests.api.helpers import PASSWORD, login, only_cookies, set_cookies
+from tests.api.helpers import PASSWORD, error_code, login, only_cookies, set_cookies
 
 pytestmark = pytest.mark.db
 
@@ -26,17 +27,27 @@ def _login_cookies(client: TestClient) -> dict[str, str]:
     return {name: cookies[name]["value"] for name in ("access_token", "refresh_token")}
 
 
+def _assert_not_authenticated(response: Response) -> None:
+    """401 with the code that sends the front end to the login page.
+
+    Every way of not having a session answers the same code: the client must not
+    learn whether a refresh token was unknown, expired or reused (theft).
+    """
+    assert response.status_code == 401
+    assert error_code(response) == "not_authenticated"
+
+
 # --- /me ---------------------------------------------------------------------
 
 
 def test_me_without_a_cookie_is_401(db_client: TestClient) -> None:
-    assert db_client.get(ME).status_code == 401
+    _assert_not_authenticated(db_client.get(ME))
 
 
 def test_me_with_a_made_up_token_is_401(db_client: TestClient) -> None:
     only_cookies(db_client, access_token="not-a-token")
 
-    assert db_client.get(ME).status_code == 401
+    _assert_not_authenticated(db_client.get(ME))
 
 
 def test_me_after_login_returns_the_user(db_client: TestClient, ana: User) -> None:
@@ -52,13 +63,13 @@ def test_me_after_login_returns_the_user(db_client: TestClient, ana: User) -> No
 
 
 def test_refresh_without_a_cookie_is_401(db_client: TestClient) -> None:
-    assert db_client.post(REFRESH).status_code == 401
+    _assert_not_authenticated(db_client.post(REFRESH))
 
 
 def test_refresh_with_a_made_up_token_is_401(db_client: TestClient) -> None:
     only_cookies(db_client, refresh_token="not-a-token")
 
-    assert db_client.post(REFRESH).status_code == 401
+    _assert_not_authenticated(db_client.post(REFRESH))
 
 
 def test_refresh_returns_the_user_and_new_cookies(db_client: TestClient, ana: User) -> None:
@@ -77,7 +88,7 @@ def test_refresh_alone_is_enough_to_get_back_in(db_client: TestClient, ana: User
     # The access cookie has expired and the browser dropped it: only the refresh one is left.
     tokens = _login_cookies(db_client)
     only_cookies(db_client, refresh_token=tokens["refresh_token"])
-    assert db_client.get(ME).status_code == 401
+    _assert_not_authenticated(db_client.get(ME))
 
     assert db_client.post(REFRESH).status_code == 200
 
@@ -89,10 +100,10 @@ def test_reusing_an_old_refresh_token_logs_the_device_out(db_client: TestClient,
     new = set_cookies(db_client.post(REFRESH))["refresh_token"]["value"]
 
     only_cookies(db_client, refresh_token=old)  # somebody replays the old token
-    assert db_client.post(REFRESH).status_code == 401
+    _assert_not_authenticated(db_client.post(REFRESH))
 
     only_cookies(db_client, refresh_token=new)  # and the legitimate one is revoked with it
-    assert db_client.post(REFRESH).status_code == 401
+    _assert_not_authenticated(db_client.post(REFRESH))
 
 
 # --- /logout -----------------------------------------------------------------
@@ -125,7 +136,7 @@ def test_after_logout_the_refresh_token_no_longer_works(db_client: TestClient, a
     db_client.post(LOGOUT)
 
     only_cookies(db_client, refresh_token=refresh_token)  # even if somebody kept a copy
-    assert db_client.post(REFRESH).status_code == 401
+    _assert_not_authenticated(db_client.post(REFRESH))
 
 
 def test_logout_without_a_cookie_is_still_204(db_client: TestClient) -> None:

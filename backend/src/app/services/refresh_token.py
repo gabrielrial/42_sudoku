@@ -3,11 +3,11 @@ import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.database.models.refresh_tokens import RefreshToken
+from app.services.auth import not_authenticated
 
 settings = get_settings()
 
@@ -47,21 +47,15 @@ def rotate_refresh_token(db: Session, raw: str) -> tuple[int, str]:
     )
 
     if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
-        )
+        raise not_authenticated()
 
     if token.used_at is not None:
         db.query(RefreshToken).filter(RefreshToken.family_id == token.family_id).delete()
         db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
-        )
+        raise not_authenticated()
 
     if _token_expired(token):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token"
-        )
+        raise not_authenticated()
 
     token.used_at = datetime.now(UTC)
 

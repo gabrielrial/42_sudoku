@@ -12,7 +12,7 @@ from app.database.models.refresh_tokens import RefreshToken
 from app.database.models.users import User
 from app.database.schema.user import PASSWORD_MAX_LENGTH
 from app.services.auth import user_from_access_token
-from tests.api.helpers import PASSWORD
+from tests.api.helpers import PASSWORD, error_code
 from tests.api.helpers import login as _login
 from tests.api.helpers import set_cookies as _cookies
 
@@ -89,6 +89,7 @@ def test_wrong_password_is_rejected_without_cookies(db_client: TestClient, ana: 
     response = _login(db_client, "ana", "not-the-password")
 
     assert response.status_code == 401
+    assert error_code(response) == "invalid_credentials"
     assert _cookies(response) == {}
 
 
@@ -96,6 +97,7 @@ def test_the_password_is_case_sensitive(db_client: TestClient, ana: User) -> Non
     response = _login(db_client, "ana", PASSWORD.upper())
 
     assert response.status_code == 401
+    assert error_code(response) == "invalid_credentials"
     assert _cookies(response) == {}
 
 
@@ -103,6 +105,7 @@ def test_unknown_user_is_rejected_without_cookies(db_client: TestClient) -> None
     response = _login(db_client, "nobody", PASSWORD)
 
     assert response.status_code == 401
+    assert error_code(response) == "invalid_credentials"
     assert _cookies(response) == {}
 
 
@@ -113,6 +116,7 @@ def test_the_dummy_hash_password_does_not_log_in_a_missing_user(db_client: TestC
     response = _login(db_client, "nobody", "timing-equaliser")
 
     assert response.status_code == 401
+    assert error_code(response) == "invalid_credentials"
     assert _cookies(response) == {}
 
 
@@ -150,6 +154,7 @@ def test_a_password_over_the_limit_is_401_without_hashing(
     response = _login(db_client, username, "x" * (PASSWORD_MAX_LENGTH + 1))
 
     assert response.status_code == 401
+    assert error_code(response) == "invalid_credentials"
     assert _cookies(response) == {}
     assert received == []
 
@@ -163,4 +168,5 @@ def test_a_password_at_the_limit_is_still_checked(
     response = _login(db_client, "ana", password)
 
     assert response.status_code == 401  # wrong password, but it was hashed
+    assert error_code(response) == "invalid_credentials"
     assert received == [password]
