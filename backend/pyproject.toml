@@ -51,6 +51,7 @@ strict = true
 warn_unreachable = true
 mypy_path = "src"
 packages = ["app", "sudoku"]
+plugins = ["pydantic.mypy"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
