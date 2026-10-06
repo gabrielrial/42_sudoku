@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from httpx import Response
 from sqlalchemy.orm import Session
 
+from app.api.routers import users as users_router
 from app.database.models.users import User
 from app.utils.security import verify_password
 from tests.api.helpers import PASSWORD, error_code
@@ -94,6 +95,31 @@ def test_signup_with_a_taken_username_in_other_case_is_409(
     assert response.status_code == 409
     assert error_code(response) == "username_taken"
     assert _count_users(db) == 1
+
+
+def test_a_signup_that_loses_a_race_is_409_not_500(
+    db: Session, db_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Two signups for "ana" at the same time: both check, both find nobody, both
+    # insert. The UNIQUE constraint lets only one through; the other must still
+    # get a clean 409, not a 500.
+    #
+    # The race is staged inside one request. hash_password runs after the check
+    # and before the insert, so the spy commits the rival "ana" right there.
+    real_hash_password = users_router.hash_password
+
+    def the_other_request_wins(password: str) -> str:
+        db.add(User(username="ana", password_hash="the-winner"))
+        db.commit()
+        return real_hash_password(password)
+
+    monkeypatch.setattr(users_router, "hash_password", the_other_request_wins)
+
+    response = _signup(db_client, "ana")
+
+    assert response.status_code == 409
+    assert error_code(response) == "username_taken"
+    assert db.query(User).filter(User.username == "ana").one().password_hash == "the-winner"
 
 
 # --- 422: invalid body -------------------------------------------------------

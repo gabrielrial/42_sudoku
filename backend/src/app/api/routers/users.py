@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.cookies import set_auth_cookies
@@ -22,6 +23,10 @@ def _invalid_credentials() -> APIError:
     return APIError(
         "invalid_credentials", "Invalid username or password.", status.HTTP_401_UNAUTHORIZED
     )
+
+
+def _username_taken() -> APIError:
+    return APIError("username_taken", "Username already taken.", status.HTTP_409_CONFLICT)
 
 
 @router.get("/me", response_model=UserPublic)
@@ -57,10 +62,14 @@ def signup(user: UserCreate, db: Annotated[Session, Depends(get_db)]) -> User:
     db_user = db.query(User).filter(User.username == user.username).first()
 
     if db_user:
-        raise APIError("username_taken", "Username already taken.", status.HTTP_409_CONFLICT)
+        raise _username_taken()
 
     new_user = User(username=user.username, password_hash=hash_password(user.password))
     db.add(new_user)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise _username_taken() from None
     db.refresh(new_user)
     return new_user
