@@ -15,14 +15,6 @@ class UserCreate(BaseModel):
         return value.lower() if isinstance(value, str) else value
 
 
-class UserResponse(BaseModel):
-    id: int
-    username: str
-    # email: str
-
-    model_config = ConfigDict(from_attributes=True)
-
-
 class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: int
