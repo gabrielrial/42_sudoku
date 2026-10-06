@@ -1,3 +1,5 @@
+import math
+
 from fastapi import Request, status
 
 from app.errors import APIError
@@ -9,8 +11,10 @@ def limit_login_attempts(request: Request) -> None:
     limiter: RateLimiter = request.app.state.login_limiter
     ip = request.client.host if request.client else "unknown"
     if not limiter.allow(ip):
+        wait = limiter.seconds_until_allowed(ip)
         raise APIError(
             "too_many_requests",
             "Too many login attempts. Try again later.",
             status.HTTP_429_TOO_MANY_REQUESTS,
+            headers={"Retry-After": str(math.ceil(wait))},
         )

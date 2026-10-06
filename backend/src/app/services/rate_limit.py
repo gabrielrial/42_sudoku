@@ -47,6 +47,16 @@ class RateLimiter:
             bucket.tokens -= 1
             return True
 
+    def seconds_until_allowed(self, key: str) -> float:
+        """How long until ``key`` has a whole token again; 0 if it has one now."""
+        with self._lock:
+            bucket = self._buckets.get(key)
+            if bucket is None:
+                return 0.0
+            refill = (self._clock() - bucket.updated) * self.refill_per_second
+            tokens = min(self.capacity, bucket.tokens + refill)
+            return max(0.0, (1 - tokens) / self.refill_per_second)
+
     def __len__(self) -> int:
         """How many keys have a bucket right now."""
         with self._lock:
