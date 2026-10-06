@@ -34,6 +34,15 @@ class FakeClock:
         self.now += seconds
 
 
+def _fake_clock(client: TestClient) -> FakeClock:
+    """Give the client's app a fresh login limiter that runs on a fake clock."""
+    clock = FakeClock()
+    app = client.app
+    assert isinstance(app, FastAPI)
+    app.state.login_limiter = RateLimiter(capacity=LIMIT, refill_per_second=LIMIT / 60, clock=clock)
+    return clock
+
+
 def _use_up_attempts(client: TestClient) -> None:
     for _ in range(LIMIT):
         assert login(client, "ana", "not-the-password").status_code == 401
@@ -94,16 +103,39 @@ def test_a_limited_attempt_never_reaches_the_password_check(
 
 
 def test_one_attempt_comes_back_after_twelve_seconds(db_client: TestClient, ana: User) -> None:
-    clock = FakeClock()
-    app = db_client.app
-    assert isinstance(app, FastAPI)
-    app.state.login_limiter = RateLimiter(capacity=LIMIT, refill_per_second=LIMIT / 60, clock=clock)
+    clock = _fake_clock(db_client)
     _use_up_attempts(db_client)
 
     clock.advance(60 / LIMIT)
 
     assert login(db_client, "ana", PASSWORD).status_code == 200
     _assert_too_many(login(db_client, "ana", PASSWORD))
+
+
+# --- Retry-After -------------------------------------------------------------
+# API.md: "Exceeding one gives 429 with Retry-After" -- whole seconds until the
+# next attempt would be allowed.
+
+
+def test_the_429_says_how_long_to_wait(db_client: TestClient, ana: User) -> None:
+    _fake_clock(db_client)
+    _use_up_attempts(db_client)
+
+    response = login(db_client, "ana", PASSWORD)
+
+    _assert_too_many(response)
+    assert response.headers["retry-after"] == "12"
+
+
+def test_retry_after_counts_down_and_rounds_up(db_client: TestClient, ana: User) -> None:
+    clock = _fake_clock(db_client)
+    _use_up_attempts(db_client)
+
+    clock.advance(11.5)  # half a second to go
+    response = login(db_client, "ana", PASSWORD)
+
+    _assert_too_many(response)
+    assert response.headers["retry-after"] == "1"  # never "0": that would invite another 429
 
 
 # --- scope -------------------------------------------------------------------

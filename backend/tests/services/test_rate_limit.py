@@ -6,6 +6,8 @@ instead of sleeping.
 
 import threading
 
+import pytest
+
 from app.services.rate_limit import RateLimiter
 
 # D5's login limit: 5 per minute, i.e. a bucket of 5 that refills one token
@@ -210,3 +212,43 @@ def test_a_forgotten_key_starts_again_with_a_full_bucket() -> None:
     limiter.allow("5.6.7.8")  # sweeps 1.2.3.4, which had refilled
 
     assert _allowed(limiter, "1.2.3.4", CAPACITY + 1) == CAPACITY
+
+
+# --- how long to wait (the 429's Retry-After) ----------------------------------
+
+
+def test_a_key_with_tokens_need_not_wait() -> None:
+    limiter = _limiter(FakeClock())
+
+    assert limiter.seconds_until_allowed("1.2.3.4") == 0  # never seen
+    limiter.allow("1.2.3.4")
+    assert limiter.seconds_until_allowed("1.2.3.4") == 0  # four tokens left
+
+
+def test_an_empty_bucket_waits_one_refill() -> None:
+    limiter = _limiter(FakeClock())
+    _allowed(limiter, "1.2.3.4", CAPACITY)
+
+    assert limiter.seconds_until_allowed("1.2.3.4") == pytest.approx(ONE_TOKEN)
+
+
+def test_the_wait_shrinks_as_time_passes() -> None:
+    clock = FakeClock()
+    limiter = _limiter(clock)
+    _allowed(limiter, "1.2.3.4", CAPACITY)
+
+    clock.advance(5)
+
+    assert limiter.seconds_until_allowed("1.2.3.4") == pytest.approx(ONE_TOKEN - 5)
+
+
+def test_asking_how_long_to_wait_costs_nothing() -> None:
+    clock = FakeClock()
+    limiter = _limiter(clock)
+    _allowed(limiter, "1.2.3.4", CAPACITY)
+
+    for _ in range(10):
+        limiter.seconds_until_allowed("1.2.3.4")
+    clock.advance(ONE_TOKEN)
+
+    assert limiter.allow("1.2.3.4") is True
