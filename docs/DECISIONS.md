@@ -132,6 +132,21 @@ stateless — one primary-key read per request remains — and a single stolen
 token cannot be revoked on its own, only together with all of that user's
 other sessions.
 
+### D16 — Only 42 accounts; no local accounts
+Decided 2026-10-06.
+
+The only way in is 42 OAuth. There is no sign-up form, no local username and no
+password: a `users` row is created on a person's first successful 42 sign-in,
+keyed on `intra_id`. The application is meant for the 42 community, not the
+public, and 42 already authenticates its members.
+
+The username/password login built during Phase 4 was a learning step towards
+the session design (access and refresh tokens, rotation, cookies, CSRF, rate
+limiting). Those parts stay; the sign-up and login endpoints, the password
+columns, argon2 (`pwdlib`) and their tests are removed.
+
+Who among 42 accounts may play is D12 (confirmed 2026-10-06: any 42 account).
+
 ### Q1 — The activity rule behind D6 (answered)
 
 | Parameter | Value |
