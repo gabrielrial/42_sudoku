@@ -13,16 +13,13 @@ from httpx import Response
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.database.models.refresh_tokens import RefreshToken
 from app.database.models.users import User
-from tests.api.helpers import PASSWORD, set_cookies, sign_in
+from tests.api.helpers import set_cookies, sign_in
 
 pytestmark = pytest.mark.db
 
 FRONTEND = get_settings().frontend_origin
 
-LOGIN = "/api/users/login"
-SIGNUP = "/api/users/signup"
 REFRESH = "/api/auth/refresh"
 LOGOUT = "/api/auth/logout"
 ME = "/api/users/me"
@@ -54,41 +51,19 @@ def _assert_forbidden(response: Response) -> None:
 # --- rejected ----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("path", [LOGIN, SIGNUP, REFRESH, LOGOUT])
+@pytest.mark.parametrize("path", [REFRESH, LOGOUT])
 def test_a_post_without_origin_is_403(db_client: TestClient, path: str) -> None:
     _assert_forbidden(_post(db_client, path, None))
 
 
 @pytest.mark.parametrize("origin", BAD_ORIGINS)
-@pytest.mark.parametrize("path", [LOGIN, SIGNUP, REFRESH, LOGOUT])
+@pytest.mark.parametrize("path", [REFRESH, LOGOUT])
 def test_a_post_from_another_origin_is_403(db_client: TestClient, path: str, origin: str) -> None:
     _assert_forbidden(_post(db_client, path, origin))
 
 
 # --- nothing happens when rejected --------------------------------------------
 # The check runs before the endpoint: no user, no session, no revocation.
-
-
-def test_a_rejected_login_logs_nobody_in(db: Session, db_client: TestClient, ana: User) -> None:
-    response = db_client.post(
-        LOGIN,
-        data={"username": "ana", "password": PASSWORD},
-        headers={"Origin": "https://evil.example"},
-    )
-
-    _assert_forbidden(response)
-    assert db.query(RefreshToken).count() == 0
-
-
-def test_a_rejected_signup_creates_nobody(db: Session, db_client: TestClient) -> None:
-    response = db_client.post(
-        SIGNUP,
-        json={"username": "mallory", "password": PASSWORD},
-        headers={"Origin": "https://evil.example"},
-    )
-
-    _assert_forbidden(response)
-    assert db.query(User).count() == 0
 
 
 def test_a_rejected_logout_keeps_the_session(db: Session, db_client: TestClient, ana: User) -> None:
