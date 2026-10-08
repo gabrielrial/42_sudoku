@@ -22,7 +22,6 @@ pytestmark = pytest.mark.db
 FRONTEND = get_settings().frontend_origin
 
 LOGIN = "/api/users/login"
-SIGNUP = "/api/users/signup"
 REFRESH = "/api/auth/refresh"
 LOGOUT = "/api/auth/logout"
 ME = "/api/users/me"
@@ -54,13 +53,13 @@ def _assert_forbidden(response: Response) -> None:
 # --- rejected ----------------------------------------------------------------
 
 
-@pytest.mark.parametrize("path", [LOGIN, SIGNUP, REFRESH, LOGOUT])
+@pytest.mark.parametrize("path", [LOGIN, REFRESH, LOGOUT])
 def test_a_post_without_origin_is_403(db_client: TestClient, path: str) -> None:
     _assert_forbidden(_post(db_client, path, None))
 
 
 @pytest.mark.parametrize("origin", BAD_ORIGINS)
-@pytest.mark.parametrize("path", [LOGIN, SIGNUP, REFRESH, LOGOUT])
+@pytest.mark.parametrize("path", [LOGIN, REFRESH, LOGOUT])
 def test_a_post_from_another_origin_is_403(db_client: TestClient, path: str, origin: str) -> None:
     _assert_forbidden(_post(db_client, path, origin))
 
@@ -78,17 +77,6 @@ def test_a_rejected_login_logs_nobody_in(db: Session, db_client: TestClient, ana
 
     _assert_forbidden(response)
     assert db.query(RefreshToken).count() == 0
-
-
-def test_a_rejected_signup_creates_nobody(db: Session, db_client: TestClient) -> None:
-    response = db_client.post(
-        SIGNUP,
-        json={"username": "mallory", "password": PASSWORD},
-        headers={"Origin": "https://evil.example"},
-    )
-
-    _assert_forbidden(response)
-    assert db.query(User).count() == 0
 
 
 def test_a_rejected_logout_keeps_the_session(db: Session, db_client: TestClient, ana: User) -> None:

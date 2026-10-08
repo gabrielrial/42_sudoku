@@ -2,7 +2,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.cookies import set_auth_cookies
@@ -10,7 +9,7 @@ from app.api.dependencies import get_current_user
 from app.api.rate_limits import limit_login_attempts
 from app.database.conf.dependencies import get_db
 from app.database.models.users import User
-from app.database.schema.user import PASSWORD_MAX_LENGTH, UserCreate, UserPublic
+from app.database.schema.user import UserCreate, UserPublic
 from app.errors import APIError
 from app.services.auth import create_access_token
 from app.services.refresh_token import issue_refresh_token
@@ -23,10 +22,6 @@ def _invalid_credentials() -> APIError:
     return APIError(
         "invalid_credentials", "Invalid username or password.", status.HTTP_401_UNAUTHORIZED
     )
-
-
-def _username_taken() -> APIError:
-    return APIError("username_taken", "Username already taken.", status.HTTP_409_CONFLICT)
 
 
 @router.get("/me", response_model=UserPublic)
