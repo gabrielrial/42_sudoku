@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.database.models.refresh_tokens import RefreshToken
 from app.database.models.users import User
-from tests.api.helpers import PASSWORD, login, set_cookies
+from tests.api.helpers import PASSWORD, set_cookies, sign_in
 
 pytestmark = pytest.mark.db
 
@@ -91,8 +91,8 @@ def test_a_rejected_signup_creates_nobody(db: Session, db_client: TestClient) ->
     assert db.query(User).count() == 0
 
 
-def test_a_rejected_logout_keeps_the_session(db_client: TestClient, ana: User) -> None:
-    assert login(db_client, "ana", PASSWORD).status_code == 200
+def test_a_rejected_logout_keeps_the_session(db: Session, db_client: TestClient, ana: User) -> None:
+    sign_in(db_client, db, ana)
 
     _assert_forbidden(_post(db_client, LOGOUT, "https://evil.example"))
 
@@ -103,16 +103,16 @@ def test_a_rejected_logout_keeps_the_session(db_client: TestClient, ana: User) -
 # --- allowed -----------------------------------------------------------------
 
 
-def test_the_front_end_origin_is_allowed(db_client: TestClient, ana: User) -> None:
-    response = db_client.post(
-        LOGIN, data={"username": "ana", "password": PASSWORD}, headers={"Origin": FRONTEND}
-    )
+def test_the_front_end_origin_is_allowed(db: Session, db_client: TestClient, ana: User) -> None:
+    sign_in(db_client, db, ana)
+
+    response = db_client.post(REFRESH, headers={"Origin": FRONTEND})
 
     assert response.status_code == 200
 
 
-def test_a_get_needs_no_origin(db_client: TestClient, ana: User) -> None:
-    assert login(db_client, "ana", PASSWORD).status_code == 200
+def test_a_get_needs_no_origin(db: Session, db_client: TestClient, ana: User) -> None:
+    sign_in(db_client, db, ana)
     db_client.headers.pop("origin", None)
 
     assert db_client.get(ME).status_code == 200
