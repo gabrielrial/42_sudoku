@@ -55,21 +55,3 @@ def login(
 
     set_auth_cookies(response, access_token, refresh_token)
     return user
-
-
-@router.post("/signup", status_code=status.HTTP_201_CREATED, response_model=UserPublic)
-def signup(user: UserCreate, db: Annotated[Session, Depends(get_db)]) -> User:
-    db_user = db.query(User).filter(User.username == user.username).first()
-
-    if db_user:
-        raise _username_taken()
-
-    new_user = User(username=user.username, password_hash=hash_password(user.password))
-    db.add(new_user)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise _username_taken() from None
-    db.refresh(new_user)
-    return new_user
