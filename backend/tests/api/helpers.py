@@ -12,11 +12,6 @@ from app.services.refresh_token import issue_refresh_token
 PASSWORD = "correct-horse-battery-staple"
 
 
-def login(client: TestClient, username: str, password: str) -> Response:
-    # OAuth2PasswordRequestForm reads a form, not JSON.
-    return client.post("/api/users/login", data={"username": username, "password": password})
-
-
 def error_code(response: Response) -> str:
     """The ``code`` of an error answered in the common envelope (``API.md``, "Errors")."""
     code = response.json()["error"]["code"]
