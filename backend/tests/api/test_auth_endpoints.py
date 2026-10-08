@@ -8,23 +8,16 @@ test needs to send something specific (an old token, garbage, nothing).
 import pytest
 from fastapi.testclient import TestClient
 from httpx import Response
+from sqlalchemy.orm import Session
 
 from app.database.models.users import User
-from tests.api.helpers import PASSWORD, error_code, login, only_cookies, set_cookies
+from tests.api.helpers import error_code, only_cookies, set_cookies, sign_in
 
 pytestmark = pytest.mark.db
 
 ME = "/api/users/me"
 REFRESH = "/api/auth/refresh"
 LOGOUT = "/api/auth/logout"
-
-
-def _login_cookies(client: TestClient) -> dict[str, str]:
-    """Log ana in and return the two token values the server set."""
-    response = login(client, "ana", PASSWORD)
-    assert response.status_code == 200
-    cookies = set_cookies(response)
-    return {name: cookies[name]["value"] for name in ("access_token", "refresh_token")}
 
 
 def _assert_not_authenticated(response: Response) -> None:
@@ -50,8 +43,8 @@ def test_me_with_a_made_up_token_is_401(db_client: TestClient) -> None:
     _assert_not_authenticated(db_client.get(ME))
 
 
-def test_me_after_login_returns_the_user(db_client: TestClient, ana: User) -> None:
-    login(db_client, "ana", PASSWORD)
+def test_me_with_a_session_returns_the_user(db: Session, db_client: TestClient, ana: User) -> None:
+    sign_in(db_client, db, ana)
 
     response = db_client.get(ME)
 
@@ -72,8 +65,10 @@ def test_refresh_with_a_made_up_token_is_401(db_client: TestClient) -> None:
     _assert_not_authenticated(db_client.post(REFRESH))
 
 
-def test_refresh_returns_the_user_and_new_cookies(db_client: TestClient, ana: User) -> None:
-    old = _login_cookies(db_client)
+def test_refresh_returns_the_user_and_new_cookies(
+    db: Session, db_client: TestClient, ana: User
+) -> None:
+    old = sign_in(db_client, db, ana)
 
     response = db_client.post(REFRESH)
 
@@ -84,9 +79,11 @@ def test_refresh_returns_the_user_and_new_cookies(db_client: TestClient, ana: Us
     assert new["access_token"]["value"]  # a fresh access token is set too
 
 
-def test_refresh_alone_is_enough_to_get_back_in(db_client: TestClient, ana: User) -> None:
+def test_refresh_alone_is_enough_to_get_back_in(
+    db: Session, db_client: TestClient, ana: User
+) -> None:
     # The access cookie has expired and the browser dropped it: only the refresh one is left.
-    tokens = _login_cookies(db_client)
+    tokens = sign_in(db_client, db, ana)
     only_cookies(db_client, refresh_token=tokens["refresh_token"])
     _assert_not_authenticated(db_client.get(ME))
 
@@ -95,8 +92,10 @@ def test_refresh_alone_is_enough_to_get_back_in(db_client: TestClient, ana: User
     assert db_client.get(ME).status_code == 200  # with the access cookie /refresh just set
 
 
-def test_reusing_an_old_refresh_token_logs_the_device_out(db_client: TestClient, ana: User) -> None:
-    old = _login_cookies(db_client)["refresh_token"]
+def test_reusing_an_old_refresh_token_logs_the_device_out(
+    db: Session, db_client: TestClient, ana: User
+) -> None:
+    old = sign_in(db_client, db, ana)["refresh_token"]
     new = set_cookies(db_client.post(REFRESH))["refresh_token"]["value"]
 
     only_cookies(db_client, refresh_token=old)  # somebody replays the old token
@@ -109,8 +108,8 @@ def test_reusing_an_old_refresh_token_logs_the_device_out(db_client: TestClient,
 # --- /logout -----------------------------------------------------------------
 
 
-def test_logout_answers_204(db_client: TestClient, ana: User) -> None:
-    login(db_client, "ana", PASSWORD)
+def test_logout_answers_204(db: Session, db_client: TestClient, ana: User) -> None:
+    sign_in(db_client, db, ana)
 
     response = db_client.post(LOGOUT)
 
@@ -118,8 +117,10 @@ def test_logout_answers_204(db_client: TestClient, ana: User) -> None:
     assert response.content == b""
 
 
-def test_logout_clears_both_cookies_on_their_own_paths(db_client: TestClient, ana: User) -> None:
-    login(db_client, "ana", PASSWORD)
+def test_logout_clears_both_cookies_on_their_own_paths(
+    db: Session, db_client: TestClient, ana: User
+) -> None:
+    sign_in(db_client, db, ana)
 
     cookies = set_cookies(db_client.post(LOGOUT))
 
@@ -130,8 +131,10 @@ def test_logout_clears_both_cookies_on_their_own_paths(db_client: TestClient, an
     assert cookies["refresh_token"]["path"] == "/api/auth"
 
 
-def test_after_logout_the_refresh_token_no_longer_works(db_client: TestClient, ana: User) -> None:
-    refresh_token = _login_cookies(db_client)["refresh_token"]
+def test_after_logout_the_refresh_token_no_longer_works(
+    db: Session, db_client: TestClient, ana: User
+) -> None:
+    refresh_token = sign_in(db_client, db, ana)["refresh_token"]
 
     db_client.post(LOGOUT)
 

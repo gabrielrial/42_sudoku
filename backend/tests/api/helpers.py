@@ -2,6 +2,12 @@
 
 from fastapi.testclient import TestClient
 from httpx import Response
+from sqlalchemy.orm import Session
+
+from app.api.cookies import ACCESS_COOKIE, REFRESH_COOKIE
+from app.database.models.users import User
+from app.services.auth import create_access_token
+from app.services.refresh_token import issue_refresh_token
 
 PASSWORD = "correct-horse-battery-staple"
 
@@ -41,3 +47,19 @@ def only_cookies(client: TestClient, **cookies: str) -> None:
     client.cookies.clear()
     for name, value in cookies.items():
         client.cookies.set(name, value)
+
+
+def sign_in(client: TestClient, db: Session, user: User) -> dict[str, str]:
+    """Give ``client`` a session for ``user`` without going through any sign-in endpoint.
+
+    Issues the same two tokens a successful sign-in does and puts them in the
+    client's cookie jar, as the browser would. Returns the two token values.
+    The session endpoints (/me, /refresh, /logout) are tested through this, so
+    their tests do not depend on how people sign in (D16: 42, not passwords).
+    """
+    access_token = create_access_token(user)
+    refresh_token = issue_refresh_token(db, user.id)
+    db.commit()
+    tokens = {ACCESS_COOKIE: access_token, REFRESH_COOKIE: refresh_token}
+    only_cookies(client, **tokens)
+    return tokens
