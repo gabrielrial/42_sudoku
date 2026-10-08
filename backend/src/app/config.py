@@ -1,9 +1,3 @@
-"""Application configuration.
-
-Every value comes from the environment. Nothing is hard-coded, and there are no
-defaults for anything secret.
-"""
-
 from functools import lru_cache
 from typing import Literal
 
@@ -17,6 +11,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: Environment = "development"
+
+    # Generate with: python3 -c "import secrets; print(secrets.token_hex(32))"
     secret_key: str
 
     database_url: str
@@ -30,6 +26,11 @@ class Settings(BaseSettings):
     # Dev-only fake identity provider, so local work and CI never call 42.
     auth_fake_provider_enabled: bool = False
 
+    access_token_minutes: int = 15
+    refresh_token_days: int = 7
+
+    login_attempts_per_minute: int = 5
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
@@ -42,9 +43,11 @@ class Settings(BaseSettings):
             raise ValueError("AUTH_FAKE_PROVIDER_ENABLED must be false when APP_ENV is production")
         if self.secret_key in {"", "change-me", "dev-only-not-a-real-secret"}:
             raise ValueError("SECRET_KEY must be set to a real value in production")
+        if len(self.secret_key) < 32:
+            raise ValueError("SECRET_KEY must be at least 32 characters in production")
         return self
 
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()  # type: ignore[call-arg]
+    return Settings()

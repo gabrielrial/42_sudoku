@@ -32,6 +32,7 @@ One row per 42 identity.
 | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
 | `updated_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
 | `last_login_at` | `TIMESTAMPTZ` | |
+| `token_version` | `INTEGER NOT NULL DEFAULT 0` | Must equal the `ver` claim of the session JWT (D15). Incremented on logout, which invalidates every token the user holds. |
 
 Nothing else from `/v2/me` is stored (`SECURITY.md`). No access token (D11), no
 email, no avatar URL.
@@ -122,25 +123,6 @@ Not built in the MVP (Q5). They arrive as a new nullable `notes JSONB` column
 with `state_version` bumped to 2 — an additive migration, not a redesign. That
 is the entire reason `state_version` exists now.
 
-## `app_sessions`
-
-The application's own login sessions, kept server-side rather than as a
-self-contained signed cookie, so that logout genuinely revokes and a deleted
-user's sessions die with them (Q8).
-
-| Column | Type | Notes |
-|---|---|---|
-| `id` | `UUID` | primary key |
-| `user_id` | `BIGINT NOT NULL` | FK → `users(id)` `ON DELETE CASCADE` |
-| `token_hash` | `TEXT NOT NULL` | **Unique.** SHA-256 of the cookie value. |
-| `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
-| `expires_at` | `TIMESTAMPTZ NOT NULL` | |
-| `last_seen_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
-
-The cookie carries a high-entropy random token; only its hash is stored, so a
-database dump does not hand over live sessions. No IP address or user agent is
-recorded — neither is needed, and both are personal data.
-
 ## `oauth_states`
 
 Short-lived rows bridging the redirect to 42 and the callback.
@@ -161,6 +143,8 @@ cookie: a cookie can be replayed, a deleted row cannot.
 ## Tables deliberately absent
 
 - **`game_moves`** — no move log in the MVP (D14).
+- **`app_sessions`** — login sessions are signed JWTs (D15). Revocation is
+  `users.token_version`; deleting the `users` row ends every session.
 - **`statistics`** — Phase 8 computes from `game_sessions`; no derived table
   until a query is actually too slow.
 - **`leaderboard`** — a query, not a table. Same reasoning.

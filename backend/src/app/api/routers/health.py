@@ -12,7 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.clock import today
-from app.db import get_session
+from app.database.conf.dependencies import get_db
 from app.errors import APIError
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -24,7 +24,7 @@ def health() -> dict[str, str]:
 
 
 @router.get("/db")
-def health_db(session: Annotated[Session, Depends(get_session)]) -> dict[str, str]:
+def health_db(session: Annotated[Session, Depends(get_db)]) -> dict[str, str]:
     try:
         session.execute(text("SELECT 1"))
     except Exception as exc:  # pragma: no cover - exercised only when the DB is down

@@ -6,19 +6,30 @@
 from it. ``message`` is for developers and never carries internal detail.
 """
 
+from collections.abc import Mapping
+from http import HTTPStatus
+
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 class APIError(Exception):
     """Raised by application code; rendered as the standard error envelope."""
 
-    def __init__(self, code: str, message: str, http_status: int = status.HTTP_400_BAD_REQUEST):
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        http_status: int = status.HTTP_400_BAD_REQUEST,
+        headers: Mapping[str, str] | None = None,
+    ):
         super().__init__(message)
         self.code = code
         self.message = message
         self.http_status = http_status
+        self.headers = headers
 
 
 def _envelope(code: str, message: str) -> dict[str, dict[str, str]]:
@@ -28,11 +39,24 @@ def _envelope(code: str, message: str) -> dict[str, dict[str, str]]:
 def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(APIError)
     async def _api_error(_: Request, exc: APIError) -> JSONResponse:
-        return JSONResponse(status_code=exc.http_status, content=_envelope(exc.code, exc.message))
+        return JSONResponse(
+            status_code=exc.http_status,
+            content=_envelope(exc.code, exc.message),
+            headers=exc.headers,
+        )
+
+    @app.exception_handler(StarletteHTTPException)
+    async def _http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:
+        phrase = HTTPStatus(exc.status_code).phrase
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=_envelope(phrase.lower().replace(" ", "_"), phrase),
+            headers=exc.headers,
+        )
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content=_envelope("invalid_request", "The request body or parameters are invalid."),
         )

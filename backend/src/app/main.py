@@ -1,11 +1,15 @@
 """FastAPI application factory."""
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.csrf import require_frontend_origin
+from app.api.routers import health
+from app.api.routers.auth import router as auth_router
+from app.api.routers.users import router as user_router
 from app.config import get_settings
 from app.errors import register_error_handlers
-from app.routers import health
+from app.services.rate_limit import RateLimiter
 
 
 def create_app() -> FastAPI:
@@ -18,6 +22,12 @@ def create_app() -> FastAPI:
         # Harmless in development, noise in production.
         docs_url=None if settings.is_production else "/api/docs",
         openapi_url=None if settings.is_production else "/api/openapi.json",
+        dependencies=[Depends(require_frontend_origin)],
+    )
+
+    app.state.login_limiter = RateLimiter(
+        capacity=settings.login_attempts_per_minute,
+        refill_per_second=settings.login_attempts_per_minute / 60,
     )
 
     app.add_middleware(
@@ -30,6 +40,9 @@ def create_app() -> FastAPI:
 
     register_error_handlers(app)
     app.include_router(health.router, prefix="/api")
+    app.include_router(user_router, prefix="/api")
+    app.include_router(auth_router, prefix="/api")
+
     return app
 
 
