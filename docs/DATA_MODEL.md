@@ -21,18 +21,20 @@ One row per 42 identity.
 
 | Column | Type | Notes |
 |---|---|---|
-| `id` | `BIGSERIAL` | primary key, internal only |
+| `id` | `SERIAL` | primary key, internal only |
 | `intra_id` | `INTEGER NOT NULL` | 42's own user id, from `/v2/me`. **Unique.** The stable identity. |
 | `login` | `TEXT NOT NULL` | 42 login. **Unique.** Displayed on leaderboards (Q12). |
-| `display_name` | `TEXT` | `displayname` from `/v2/me` |
-| `campus_id` | `INTEGER` | stored so D12 can be narrowed later without a migration |
-| `campus_name` | `TEXT` | |
-| `is_staff` | `BOOLEAN NOT NULL DEFAULT false` | `staff?` from `/v2/me` |
-| `intra_active` | `BOOLEAN NOT NULL DEFAULT true` | `active?` from `/v2/me`. Named to avoid confusion with session activity. |
+| `campus_id` | `INTEGER NOT NULL` | from the primary entry of `campus_users` (see below) |
+| `campus_name` | `TEXT NOT NULL` | name of that campus, from `campus` |
 | `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
-| `updated_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
-| `last_login_at` | `TIMESTAMPTZ` | |
-| `token_version` | `INTEGER NOT NULL DEFAULT 0` | Must equal the `ver` claim of the session JWT (D15). Incremented on logout, which invalidates every token the user holds. |
+
+The table keeps the minimum needed to identify a person and show them. Every
+sign-in fetches `/v2/me` again and refreshes the row, so a column added later
+fills itself as people log in; nothing is stored "just in case".
+
+Every 42 account is assumed to have a primary campus (`campus_users[].is_primary`).
+42's documentation does not say so. The callback rejects an account without one
+with a clear error instead of failing on the constraint.
 
 Nothing else from `/v2/me` is stored (`SECURITY.md`). No access token (D11), no
 email, no avatar URL.

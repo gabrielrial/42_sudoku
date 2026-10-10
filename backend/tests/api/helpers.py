@@ -9,8 +9,6 @@ from app.database.models.users import User
 from app.services.auth import create_access_token
 from app.services.refresh_token import issue_refresh_token
 
-PASSWORD = "correct-horse-battery-staple"
-
 
 def error_code(response: Response) -> str:
     """The ``code`` of an error answered in the common envelope (``API.md``, "Errors")."""

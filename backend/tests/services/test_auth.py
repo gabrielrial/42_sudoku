@@ -63,21 +63,21 @@ def _unsigned(claims: dict[str, object]) -> str:
 
 
 def test_the_token_names_the_user_by_id() -> None:
-    token = create_access_token(User(id=5, username="ana", password_hash="x"))
+    token = create_access_token(User(id=5))
 
     claims = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
     assert claims["sub"] == "5"
 
 
 def test_the_token_lasts_the_configured_minutes() -> None:
-    token = create_access_token(User(id=5, username="ana", password_hash="x"))
+    token = create_access_token(User(id=5))
 
     claims = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
     assert claims["exp"] - claims["iat"] == settings.access_token_minutes * 60
 
 
 def test_the_token_is_signed_with_hs256() -> None:
-    token = create_access_token(User(id=5, username="ana", password_hash="x"))
+    token = create_access_token(User(id=5))
 
     assert jwt.get_unverified_header(token)["alg"] == "HS256"
 

@@ -43,13 +43,13 @@ def test_me_with_a_made_up_token_is_401(db_client: TestClient) -> None:
     _assert_not_authenticated(db_client.get(ME))
 
 
-def test_me_with_a_session_returns_the_user(db: Session, db_client: TestClient, ana: User) -> None:
-    sign_in(db_client, db, ana)
+def test_me_with_a_session_returns_the_user(db: Session, db_client: TestClient, user: User) -> None:
+    sign_in(db_client, db, user)
 
     response = db_client.get(ME)
 
     assert response.status_code == 200
-    assert response.json() == {"id": ana.id, "username": "ana"}
+    assert response.json() == {"login": "ana", "campus_name": "Berlin"}
 
 
 # --- /refresh ----------------------------------------------------------------
@@ -66,24 +66,24 @@ def test_refresh_with_a_made_up_token_is_401(db_client: TestClient) -> None:
 
 
 def test_refresh_returns_the_user_and_new_cookies(
-    db: Session, db_client: TestClient, ana: User
+    db: Session, db_client: TestClient, user: User
 ) -> None:
-    old = sign_in(db_client, db, ana)
+    old = sign_in(db_client, db, user)
 
     response = db_client.post(REFRESH)
 
     assert response.status_code == 200
-    assert response.json() == {"id": ana.id, "username": "ana"}
+    assert response.json() == {"login": "ana", "campus_name": "Berlin"}
     new = set_cookies(response)
     assert new["refresh_token"]["value"] != old["refresh_token"]
     assert new["access_token"]["value"]  # a fresh access token is set too
 
 
 def test_refresh_alone_is_enough_to_get_back_in(
-    db: Session, db_client: TestClient, ana: User
+    db: Session, db_client: TestClient, user: User
 ) -> None:
     # The access cookie has expired and the browser dropped it: only the refresh one is left.
-    tokens = sign_in(db_client, db, ana)
+    tokens = sign_in(db_client, db, user)
     only_cookies(db_client, refresh_token=tokens["refresh_token"])
     _assert_not_authenticated(db_client.get(ME))
 
@@ -93,9 +93,9 @@ def test_refresh_alone_is_enough_to_get_back_in(
 
 
 def test_reusing_an_old_refresh_token_logs_the_device_out(
-    db: Session, db_client: TestClient, ana: User
+    db: Session, db_client: TestClient, user: User
 ) -> None:
-    old = sign_in(db_client, db, ana)["refresh_token"]
+    old = sign_in(db_client, db, user)["refresh_token"]
     new = set_cookies(db_client.post(REFRESH))["refresh_token"]["value"]
 
     only_cookies(db_client, refresh_token=old)  # somebody replays the old token
@@ -108,8 +108,8 @@ def test_reusing_an_old_refresh_token_logs_the_device_out(
 # --- /logout -----------------------------------------------------------------
 
 
-def test_logout_answers_204(db: Session, db_client: TestClient, ana: User) -> None:
-    sign_in(db_client, db, ana)
+def test_logout_answers_204(db: Session, db_client: TestClient, user: User) -> None:
+    sign_in(db_client, db, user)
 
     response = db_client.post(LOGOUT)
 
@@ -118,9 +118,9 @@ def test_logout_answers_204(db: Session, db_client: TestClient, ana: User) -> No
 
 
 def test_logout_clears_both_cookies_on_their_own_paths(
-    db: Session, db_client: TestClient, ana: User
+    db: Session, db_client: TestClient, user: User
 ) -> None:
-    sign_in(db_client, db, ana)
+    sign_in(db_client, db, user)
 
     cookies = set_cookies(db_client.post(LOGOUT))
 
@@ -132,9 +132,9 @@ def test_logout_clears_both_cookies_on_their_own_paths(
 
 
 def test_after_logout_the_refresh_token_no_longer_works(
-    db: Session, db_client: TestClient, ana: User
+    db: Session, db_client: TestClient, user: User
 ) -> None:
-    refresh_token = sign_in(db_client, db, ana)["refresh_token"]
+    refresh_token = sign_in(db_client, db, user)["refresh_token"]
 
     db_client.post(LOGOUT)
 
