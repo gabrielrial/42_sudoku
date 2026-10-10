@@ -101,7 +101,7 @@ def user(db: Session) -> "User":
     """One saved user, for tests that need somebody to own a token."""
     from app.database.models.users import User
 
-    user = User(username="ana", password_hash="not-a-real-hash")
+    user = User(intra_id=12345, login="ana", campus_id=1, campus_name="Berlin")
     db.add(user)
     db.commit()
     return user

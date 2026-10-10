@@ -66,8 +66,10 @@ def test_a_post_from_another_origin_is_403(db_client: TestClient, path: str, ori
 # The check runs before the endpoint: no user, no session, no revocation.
 
 
-def test_a_rejected_logout_keeps_the_session(db: Session, db_client: TestClient, ana: User) -> None:
-    sign_in(db_client, db, ana)
+def test_a_rejected_logout_keeps_the_session(
+    db: Session, db_client: TestClient, user: User
+) -> None:
+    sign_in(db_client, db, user)
 
     _assert_forbidden(_post(db_client, LOGOUT, "https://evil.example"))
 
@@ -78,16 +80,16 @@ def test_a_rejected_logout_keeps_the_session(db: Session, db_client: TestClient,
 # --- allowed -----------------------------------------------------------------
 
 
-def test_the_front_end_origin_is_allowed(db: Session, db_client: TestClient, ana: User) -> None:
-    sign_in(db_client, db, ana)
+def test_the_front_end_origin_is_allowed(db: Session, db_client: TestClient, user: User) -> None:
+    sign_in(db_client, db, user)
 
     response = db_client.post(REFRESH, headers={"Origin": FRONTEND})
 
     assert response.status_code == 200
 
 
-def test_a_get_needs_no_origin(db: Session, db_client: TestClient, ana: User) -> None:
-    sign_in(db_client, db, ana)
+def test_a_get_needs_no_origin(db: Session, db_client: TestClient, user: User) -> None:
+    sign_in(db_client, db, user)
     db_client.headers.pop("origin", None)
 
     assert db_client.get(ME).status_code == 200

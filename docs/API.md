@@ -61,7 +61,7 @@ only clears the cookie.
 
 ### `GET /api/me`
 
-    { "login": "grial", "display_name": "Gabriel R.", "campus_name": "Berlin" }
+    { "login": "grial", "campus_name": "Berlin" }
 
 ---
 
