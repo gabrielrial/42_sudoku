@@ -9,4 +9,4 @@ table Alembic cannot see. Add each new model below.
 from app.database.models.refresh_tokens import RefreshToken
 from app.database.models.users import User
 
-__all__ = ["RefreshToken", "User"]
+__all__ = ["RefreshToken", "User", "OAuthState"]
