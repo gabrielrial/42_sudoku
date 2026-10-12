@@ -42,7 +42,10 @@ there is no way to look without committing.
 ## Authentication
 
 - 42 OAuth2, authorization code flow, with `state` and PKCE. `state` is
-  single-use and verified.
+  single-use and verified, and bound by a short-lived cookie to the browser
+  that started the login (no login CSRF with an attacker's own valid `state`).
+  Whether 42 enforces PKCE is not documented; it is to be checked against the
+  real application.
 - The user's 42 password is never seen, requested or stored.
 - Client ID, client secret and the JWT signing key (`SECRET_KEY`) come from the
   environment. Never from source, never from a committed file.

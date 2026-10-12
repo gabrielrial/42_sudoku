@@ -132,13 +132,24 @@ Short-lived rows bridging the redirect to 42 and the callback.
 | Column | Type | Notes |
 |---|---|---|
 | `state` | `TEXT` | primary key, high-entropy random |
-| `code_verifier` | `TEXT NOT NULL` | PKCE |
-| `redirect_to` | `TEXT` | where to send the user after login |
-| `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
-| `expires_at` | `TIMESTAMPTZ NOT NULL` | ten minutes |
+| `code_verifier` | `TEXT NOT NULL` | PKCE (RFC 7636): 128 random unreserved characters; only its S256 challenge leaves the server before the code exchange |
+| `expires_at` | `TIMESTAMPTZ NOT NULL` | ten minutes after the login started |
 
 Deleted on use. Single-use enforcement is the reason this is a table and not a
-cookie: a cookie can be replayed, a deleted row cannot.
+cookie: a cookie can be replayed, a deleted row cannot. Rows of abandoned
+logins (the user never came back from 42) are deleted when the next login
+starts, so the table stays small.
+
+The row proves the server issued the `state`; it does not prove which browser
+it was issued to. `/login` therefore also sets the `state` in a short-lived
+cookie, and the callback requires the two to match (`API.md`). Without that, an
+attacker could start a login of their own and send the victim a callback link
+carrying the attacker's valid `state` (login CSRF).
+
+No `redirect_to` for now: after signing in, the user always lands on the front
+end's home page. Returning to the page the user came from is postponed; when it
+is added, the target is stored here (server-side, validated once at `/login`)
+and must be a same-origin path, to avoid an open redirect.
 
 ---
 
