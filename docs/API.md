@@ -39,12 +39,16 @@ session. Exceeding one gives `429` with `Retry-After`.
 ### `GET /api/auth/login`
 
 Starts the 42 OAuth2 flow. Generates `state` and a PKCE `code_verifier`, stores
-them in `oauth_states`, and answers `302` to 42's authorize endpoint. Optional
-`?next=` records where to land afterwards; only same-origin paths are accepted.
+them in `oauth_states`, sets the `state` in a short-lived `HttpOnly` cookie
+(`Path=/api/auth/callback`, ten minutes), and answers `302` to 42's authorize
+endpoint with the `state` and the verifier's S256 `code_challenge`. Takes no
+parameters: after signing in, the user always lands on the front end's home
+page (a `?next=` is postponed; see `DATA_MODEL.md`, `oauth_states`).
 
 ### `GET /api/auth/callback?code=…&state=…`
 
-Validates and **deletes** the `state` row (single use, ten-minute expiry),
+Checks that the `state` in the URL matches the `state` cookie, validates and
+**deletes** the `state` row (single use, ten-minute expiry), clears the cookie,
 exchanges the code with 42 using the PKCE verifier, fetches `/v2/me`, upserts
 the user on `intra_id`, discards the 42 token (D11), issues a JWT (D15), sets
 the cookie, and answers `302` to the front end.
