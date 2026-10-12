@@ -5,6 +5,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database.conf.alch_conf import Base
 
+
 class OAuthState(Base):
     __tablename__ = "oauth_states"
 

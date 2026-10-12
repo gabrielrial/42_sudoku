@@ -1,11 +1,11 @@
-from datetime import timedelta, datetime, UTC
+import base64
 import hashlib
 import secrets
-import base64
 import string
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy.orm import Session
 from sqlalchemy import delete
+from sqlalchemy.orm import Session
 
 from app.database.models.oauth_states import OAuthState
 
@@ -35,8 +35,7 @@ def start_login(db: Session) -> tuple[str, str]:
     state = secrets.token_urlsafe(32)
     verifier, challenge = generate_pkce_pair()
     db.add(OAuthState(state=state, code_verifier=verifier, expires_at=now + STATE_LIFETIME))
-    return state, challenge 
-
+    return state, challenge
 
 
 def finish_login(db: Session, state: str) -> str:
@@ -45,5 +44,3 @@ def finish_login(db: Session, state: str) -> str:
         raise InvalidOAuthState
     db.delete(row)
     return row.code_verifier
-
-    
