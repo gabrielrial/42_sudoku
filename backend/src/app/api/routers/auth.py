@@ -11,7 +11,7 @@ from app.database.conf.dependencies import get_db
 from app.database.models.users import User
 from app.database.schema.user import UserPublic
 from app.services.auth import create_access_token, not_authenticated
-from app.services.oauth_pkce import finish_login, start_login
+from app.services.oauth_pkce import finish_login, start_login, InvalidOAuthState
 from app.services.refresh_token import (
     issue_refresh_token,
     revoke_refresh_token,
@@ -62,7 +62,11 @@ def callback(
     provider: ProviderDep,
     response: Response,
 ) -> RedirectResponse:
-    finish_login(db, state)
+    try:
+        finish_login(db, state)
+    except InvalidOAuthState:
+        raise not_authenticated()
+    
     identity = provider.identity_from_code(code)
 
     user = db.query(User).filter(User.intra_id == identity.intra_id).first()
