@@ -151,13 +151,39 @@ end's home page. Returning to the page the user came from is postponed; when it
 is added, the target is stored here (server-side, validated once at `/login`)
 and must be a same-origin path, to avoid an open redirect.
 
+## `refresh_tokens`
+
+One row per refresh token issued (`DECISIONS.md` D15).
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `SERIAL` | primary key, internal only |
+| `user_id` | `INTEGER NOT NULL` | FK → `users(id)` `ON DELETE CASCADE`. Indexed. |
+| `token_hash` | `VARCHAR NOT NULL` | SHA-256 (hex) of the token. **Unique.** The token itself is never stored. |
+| `family_id` | `UUID NOT NULL` | shared by every token descended from one sign-in. Indexed. |
+| `created_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | |
+| `expires_at` | `TIMESTAMPTZ NOT NULL` | seven days after this token was issued |
+| `used_at` | `TIMESTAMPTZ` | set when the token is rotated; `NULL` while it is the live one |
+
+A family is one device's session. Rotation seals the current token (`used_at`)
+and inserts its successor with the same `family_id`. Logout deletes the family;
+so does presenting a sealed token again, which can only mean a copy exists.
+Revocation is deletion: there is no `revoked_at`.
+
+A sealed row has to stay while its token could still be presented: it is how
+reuse is detected. Nothing deletes expired rows yet, and every refresh adds
+one, so the table only grows; a periodic delete of rows past `expires_at` is
+pending.
+
 ---
 
 ## Tables deliberately absent
 
 - **`game_moves`** — no move log in the MVP (D14).
-- **`app_sessions`** — login sessions are signed JWTs (D15). Revocation is
-  `users.token_version`; deleting the `users` row ends every session.
+- **`app_sessions`** — requests are authenticated by a signed access JWT
+  (D15), verified by its signature plus the user lookup the endpoints need
+  anyway. What the server does keep is `refresh_tokens`, one row per refresh
+  token; deleting the `users` row cascades to those and ends every session.
 - **`statistics`** — Phase 8 computes from `game_sessions`; no derived table
   until a query is actually too slow.
 - **`leaderboard`** — a query, not a table. Same reasoning.

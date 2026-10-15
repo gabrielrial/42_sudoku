@@ -1,8 +1,7 @@
 # Roadmap
 
-**Current phase: Phase 2 — the Sudoku engine, built and awaiting review** on
-branch `phase-2-sudoku-engine`. Phases 0 and 1 are complete: the stack runs
-under Docker Compose and CI is green.
+**Current phase: Phase 4 — authentication, in progress.** Phases 0 to 2 are
+on `main`. Phase 3 has not been started: Phase 4 was begun before it.
 
 A demo board — one fixed puzzle you can fill in, nothing else — was pulled
 forward from Phase 6 at the developer's request. See `DECISIONS.md` A5.
@@ -44,7 +43,7 @@ Exit conditions, both met: `docker compose up` gives a running application with
 Five problems were hit getting here. They are written up in `LESSONS.md`, which
 is worth a minute before starting Phase 2.
 
-## Phase 2 — Sudoku engine (built, in review)
+## Phase 2 — Sudoku engine (on `main`; one verification open)
 
 Pure Python. No framework, no database, no HTTP. Board representation,
 candidate handling, the technique ladder and grader, a separate counting solver
@@ -83,17 +82,37 @@ handling. Unique constraint on `(puzzle_date, difficulty)`.
 Exit: three puzzles exist for today and for the next N days; DST boundary tests
 pass (last Sunday of March and of October).
 
-## Phase 4 — Authentication
+## Phase 4 — Authentication (in progress)
 
 The 42 OAuth2 flow: redirect, `state` + PKCE, callback, `/v2/me`, local user
-creation, application session as a JWT in a cookie (`DECISIONS.md` D15),
-logout, protected endpoints.
+creation, the application session — a short access JWT and a rotating refresh
+token, both in cookies (`DECISIONS.md` D15) — logout, protected endpoints.
+42 accounts only (D16).
 
 A dev-mode fake identity provider is built in this same phase, so that local
 development, the test suite and CI never call 42.
 
-Exit: a real 42 login works locally; a token is rejected after logout and after
-its user is deleted; the full test suite passes with no network access.
+Exit: a real 42 login works locally; after logout the refresh token is
+rejected (the access token lapses within 15 minutes, D15); after the user is
+deleted both are rejected; the full test suite passes with no network access.
+
+Status:
+
+- On `main`: the session (access and refresh tokens, rotation, theft
+  detection, logout, `GET /api/users/me`); the `Origin` check against CSRF;
+  the login rate limiter (D17), not yet attached to a route; the common error
+  envelope; `users` keyed on the 42 identity; `oauth_states` with the PKCE
+  helpers.
+- On `feature/identity-provider`, not merged: the identity provider interface
+  with a fake and a real implementation, and first versions of
+  `GET /api/auth/login` and `GET /api/auth/callback`. Still to do before it
+  merges: sending the PKCE challenge and verifier, the `state` cookie,
+  refreshing a returning user, error redirects, the login rate limit, and a
+  test of a whole sign-in through the fake provider.
+- Then: register the application with 42 (Q3) and sign in for real, including
+  the PKCE check in D18.
+- A username/password login was built first, as a learning step towards the
+  session design, and removed (D16).
 
 ## Phase 5 — Game API
 

@@ -109,6 +109,107 @@ never reaches CI again.
 
 ---
 
+# Phase 4 — operational
+
+## 9. Commits that left CI red
+
+**Symptom.** Several Phase 4 commits failed CI: files committed before
+`ruff format` ran (`0502db8`, and again on 2026-10-10); a commit holding the
+tests but not the implementation (`5c32d19`); a `raise not_authenticated`
+without parentheses, which turned a `401` into a `500`.
+
+**Fix.** Before every commit, in the container: `ruff format .`,
+`ruff check --fix .`, `mypy src`, the tests. Lesson 8's `pre-commit install`
+makes the first two automatic.
+
+## 10. Failing tests deleted "because they did not pass"
+
+**Symptom.** 2026-10-08: four commits pushed, all red. Removing the sign-up
+schema also removed `PASSWORD_MAX_LENGTH`, which login still used; the length
+check was then dropped from login, two tests failed, and they were deleted.
+
+**Fix.** Rebuilt as a single commit with `git reset --soft` and pushed with
+`git push --force-with-lease`.
+
+**Lesson.** A test that fails after a change is usually right. Delete a test
+only when it has become obsolete, and in the same commit as the change that
+made it so.
+
+## 11. `Any` made mypy blind
+
+**Symptom.** `get_user_by_email` used `User.email`, which never existed, and
+neither mypy nor anything else complained.
+
+**Cause.** Models declared with `Column(...)` on a `declarative_base()` class
+were `Any` to mypy, so no attribute of `User` was checked at all.
+
+**Fix.** SQLAlchemy 2.0 models: `DeclarativeBase` and `Mapped[...]`.
+
+**Lesson.** An `Any` is not a missing error; it is a region where the type
+checker cannot see.
+
+## 12. A new file left out of a commit
+
+**Symptom.** 2026-10-10: the `users` change was pushed without its migration.
+
+**Cause.** A new file is untracked (`??`); `git add -u` and `git commit -a`
+only pick up files git already knows. CI did not notice either, because the
+tests build the schema with `create_all`, not from the migrations.
+
+**Lesson.** Read `git status` just before `git commit`. `--amend` replaces the
+last commit; a plain `commit` adds another.
+
+## 13. An empty migration was merged
+
+**Symptom.** 2026-10-12: PR #10 was merged with a migration that created
+nothing. `oauth_states` existed only in the tests.
+
+**Cause.** `models/__init__.py` named `"OAuthState"` in `__all__` without
+importing it. `__all__` imports nothing, so autogenerate never saw the table.
+`ruff check` reported it (F822) and the warning was ignored. The tests passed
+because they import the model directly, and `alembic check` passed because the
+table already existed in the development database.
+
+**Fix.** Import the model, generate the migration again, through a new pull
+request: `main` is not rewritten.
+
+**Lesson.** Read every generated migration before applying it. A downgrade and
+upgrade round trip proves something only if you watch the table disappear and
+come back (`\dt`). Do not merge a branch until it is complete and reviewed.
+
+## 14. Database tests skipped, not failed
+
+**Symptom.** 2026-10-01: "6 passed, 49 skipped" looked green.
+
+**Cause.** The database tests need `sudoku_test`, and `make` had deleted it
+along with the rest of the volume. Without it they skip.
+
+**Fix.** `docker compose exec db createdb -U sudoku sudoku_test` after every
+`make` (`README.md`, Checks). Read the skip count every time. Making the
+fixture fail instead of skip is still to do.
+
+## 15. Rewriting pushed history
+
+After `reset --soft` or `--amend` on a branch that was already pushed, a
+"non-fast-forward" rejection is expected. The answer is
+`git push --force-with-lease`, never `git pull`, which would merge the old
+history back in — and only on a branch nobody else uses. Look at the command
+before pressing Enter, and at `git log -1` after: one amended commit went out
+with another project's message, recalled from the shell history.
+
+## 16. The `.venv` is not the container
+
+`pip show` in the Mac's `.venv` says nothing about the environment the tests
+and CI use. Ask the container: `docker compose exec api pip show <package>`.
+
+## 17. zsh and pasted comments
+
+The developer's zsh does not treat `#` as a comment in pasted commands, so a
+line with a trailing comment fails. Paste commands without comments, one at a
+time.
+
+---
+
 # Design corrections
 
 Not bugs — reasoning that was wrong and got caught before it became code.
@@ -143,3 +244,13 @@ it is *correct* (`SECURITY.md`).
 Which creates two notions of "the submitted grid" that can disagree — and the
 client's copy is the untrustworthy one. The endpoint now takes no body and
 verifies the state the server already holds.
+
+## E. The `state` row alone did not stop login CSRF
+
+The first OAuth design kept `state` only in `oauth_states`. That proves the
+server issued it, not to which browser. An attacker could start a login, take
+the valid `state`, and send a victim the callback link with the attacker's own
+code: the victim ends up signed in to the attacker's account. PKCE does not
+help, because code and verifier both belong to the attacker. Hence the
+short-lived `state` cookie that ties the callback to the browser that started
+the login (`DATA_MODEL.md`, `oauth_states`).

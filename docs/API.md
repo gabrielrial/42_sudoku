@@ -4,20 +4,31 @@ JSON over HTTP under `/api`. FastAPI, Pydantic models at every boundary.
 
 ## Conventions
 
-**Authentication** is a session cookie: `HttpOnly`, `SameSite=Lax`, `Secure` in
-production, `Path=/`. It carries a JWT signed with `SECRET_KEY` (HS256; claims
-`sub`, `iat`, `exp`, `ver` — `DECISIONS.md` D15). The server checks signature
-and expiry, loads the user named by `sub`, and compares `ver` with
-`users.token_version`. Every endpoint below except the auth ones requires it and
-answers `401` without it or when any of those checks fails.
+**Authentication** is two cookies (`DECISIONS.md` D15), both `HttpOnly`,
+`SameSite=Lax`, and `Secure` in production:
+
+| Cookie | `Path` | Lifetime | Contents |
+|---|---|---|---|
+| `access_token` | `/` | 15 minutes | JWT, HS256, signed with `SECRET_KEY`; claims `sub`, `iat`, `exp` |
+| `refresh_token` | `/api/auth` | 7 days, renewed on each rotation | opaque random value; the server stores only its SHA-256 |
+
+On each request the server checks the access token's signature and expiry and
+loads the user named by `sub`. Every endpoint below except the auth ones
+requires it, and answers `401 not_authenticated` without it or when any of
+those checks fails. The client then calls `POST /api/auth/refresh` once and
+retries.
 
 **Authorisation** is separate and always checked: a game endpoint verifies the
 session belongs to the calling user, and answers `404` — not `403` — when it does
 not. A `403` would confirm that someone else's game exists at that id.
 
 **CSRF**: `SameSite=Lax` blocks cross-site cookie-bearing `POST`s. On top of
-that, every state-changing request must carry an `Origin` header matching the
-configured front-end origin. Requests failing that check get `403`.
+that, every request other than `GET`, `HEAD` and `OPTIONS` must carry an
+`Origin` header exactly equal to the configured front-end origin
+(`FRONTEND_ORIGIN`). Requests failing that check get `403 forbidden_origin`.
+The check is a dependency of the whole application, so a new endpoint cannot
+forget it. Nothing that changes state is a `GET`, except the two OAuth
+endpoints: the browser reaches them by navigation, and `state` protects them.
 
 **Errors** all share one shape:
 
@@ -26,11 +37,26 @@ configured front-end origin. Requests failing that check get `403`.
 `code` is stable and machine-readable; `message` is for developers, not for
 display. The client decides what the user sees from `code`.
 
+Codes that apply to every endpoint:
+
+| Status | `code` | When |
+|---|---|---|
+| `401` | `not_authenticated` | no session, a bad or expired token, any refresh failure |
+| `403` | `forbidden_origin` | the `Origin` check above |
+| `404` | `not_found` | no such route |
+| `405` | `method_not_allowed` | the route exists, the method does not |
+| `422` | `invalid_request` | body or parameters fail validation |
+| `429` | `too_many_requests` | over a rate limit; carries `Retry-After` |
+| `503` | `database_unavailable` | `/api/health/db` cannot reach PostgreSQL |
+
+Each game endpoint below lists its own codes.
+
 **Times** are ISO-8601 with offset. Durations are integer seconds.
 
 **Rate limits** are per D5: game input 1/second per session with burst,
 completion 5/minute per session, login 5/minute per IP, heartbeat 2/minute per
-session. Exceeding one gives `429` with `Retry-After`.
+session. Exceeding one gives `429 too_many_requests` with `Retry-After`, in
+whole seconds rounded up.
 
 ---
 
@@ -45,27 +71,49 @@ endpoint with the `state` and the verifier's S256 `code_challenge`. Takes no
 parameters: after signing in, the user always lands on the front end's home
 page (a `?next=` is postponed; see `DATA_MODEL.md`, `oauth_states`).
 
+PKCE is `DECISIONS.md` D18. Limited to 5 requests/minute per IP (D5).
+
 ### `GET /api/auth/callback?code=…&state=…`
 
 Checks that the `state` in the URL matches the `state` cookie, validates and
 **deletes** the `state` row (single use, ten-minute expiry), clears the cookie,
 exchanges the code with 42 using the PKCE verifier, fetches `/v2/me`, upserts
-the user on `intra_id`, discards the 42 token (D11), issues a JWT (D15), sets
-the cookie, and answers `302` to the front end.
+the user on `intra_id` (refreshing `login` and campus for a returning user),
+discards the 42 token (D11), issues the two session tokens (D15), sets both
+cookies, and answers `302` to the front end's home page.
 
-Failure — bad state, expired state, denied consent, 42 unreachable — redirects
-to the front end with an error code in the query string. No stack traces, no
-token values, ever.
+Failure — bad or expired state, a missing `state` cookie, denied consent, 42
+unreachable, an account without a primary campus — redirects to the front end
+with an error code in the query string. No stack traces, no token values, ever.
+
+### `POST /api/auth/refresh`
+
+No body; reads the `refresh_token` cookie. Rotates it (D15): the presented
+token is sealed, its successor in the same family replaces it, and a new access
+token is issued. Sets both cookies.
+
+    ← 200  { "login": "grial", "campus_name": "Berlin" }
+
+Every failure — no cookie, an unknown, expired or already-used token — is
+`401 not_authenticated`. An already-used token also deletes its whole family:
+someone else holds a copy.
+
+The client must never run two refreshes at once (D15).
 
 ### `POST /api/auth/logout`
 
-Increments `users.token_version` — invalidating the user's tokens on every
-device — and clears the cookie. `204`. Idempotent: without a valid cookie it
-only clears the cookie.
+Deletes the family of the presented refresh token — this device only — and
+clears both cookies. `204`, always: without a cookie, or with an unknown one,
+it only clears the cookies.
 
-### `GET /api/me`
+The access token already issued stays valid until it expires, at most 15
+minutes later. That is the accepted cost in D15.
 
-    { "login": "grial", "campus_name": "Berlin" }
+### `GET /api/users/me`
+
+    ← 200  { "login": "grial", "campus_name": "Berlin" }
+
+The front end calls it on load to find out whether there is a session.
 
 ---
 

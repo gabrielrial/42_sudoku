@@ -6,9 +6,10 @@ everyone, with authentication through the official 42 OAuth2 API.
 
 Application timezone: Europe/Berlin.
 
-**Status: Phase 2 built, in review.** The Sudoku engine generates and grades
-puzzles; the front end shows one demo puzzle you can fill in, and nothing more
-yet. See `docs/ROADMAP.md`.
+**Status: Phase 4 (authentication) in progress.** The Sudoku engine generates
+and grades puzzles; sessions work, and signing in with 42 is being built. The
+front end shows one demo puzzle you can fill in, and nothing more yet. See
+`docs/ROADMAP.md`.
 
 ## Running it locally
 
@@ -28,7 +29,17 @@ docker compose up --build     # first run takes a few minutes
 | http://localhost:5173 | the demo board: one puzzle to fill in |
 | http://localhost:8000/api/docs | interactive API documentation |
 
+The first time, and after every new migration, create the tables from another
+terminal:
+
+```bash
+docker compose exec api alembic upgrade head
+```
+
 `Ctrl-C` stops everything. `docker compose down -v` also deletes the database.
+
+The `Makefile` wraps this: `make all` starts and migrates, keeping the data;
+plain `make` starts from zero and **deletes the database**.
 
 Source is bind-mounted, so edits reload without a rebuild. Changing a Dockerfile
 or a dependency does need `docker compose up --build`.
@@ -43,6 +54,21 @@ docker compose exec api ruff format .     # --check in CI; this one fixes
 docker compose exec api mypy src
 docker compose exec api pytest
 ```
+
+The database tests use their own database, `sudoku_test`, and are **skipped,
+not failed**, when it does not exist. Create it once, and again after every
+`make` (which deletes it), then run the tests against it:
+
+```bash
+docker compose exec db createdb -U sudoku sudoku_test
+docker compose exec -e DATABASE_URL=postgresql+psycopg://sudoku:sudoku@db:5432/sudoku_test api pytest -rs
+```
+
+Only the two published-puzzle checks in `test_verification.py` should skip.
+
+After changing a model, `docker compose exec api alembic check` must print
+"No new upgrade operations detected" once the new migration is applied. Read
+every generated migration before applying it.
 
 Install the hooks once and formatting stops being something you think about:
 

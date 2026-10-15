@@ -2,8 +2,15 @@
 
 ## Stack (agreed — no justification needed to use these)
 
-**Backend:** Python, FastAPI, PostgreSQL, SQLAlchemy, Alembic, Pydantic, PyJWT, pytest.
+**Backend:** Python, FastAPI, PostgreSQL, SQLAlchemy, Alembic, Pydantic, PyJWT, httpx, pytest.
 Type hints everywhere.
+
+httpx is the HTTP client. FastAPI's `TestClient` is built on it, so the API
+tests need it in any case, and the backend uses it to talk to 42: the code
+exchange and `/v2/me`. It comes from Encode, the team behind Starlette and
+uvicorn. It is a runtime dependency, not only a test one, because the 42 login
+uses it in production. The standard library's `urllib` could make those two
+calls, but would not remove httpx, which the tests still need.
 
 **Frontend:** React + TypeScript + Vite. Confirmed (`DECISIONS.md` Q4).
 Chosen without a long evaluation: a 9×9 grid does not discriminate between
@@ -19,11 +26,11 @@ A modular monolith. One FastAPI application, internally separated by
 responsibility, one database.
 
     Frontend (React)
-        |  HTTP / JSON, JWT in an HttpOnly cookie
+        |  HTTP / JSON, session in two HttpOnly cookies (D15)
         v
     FastAPI application
         |
-        +-- auth        42 OAuth2 flow, JWT issue/verify, dependencies
+        +-- auth        42 OAuth2 flow, session tokens, dependencies
         +-- users       local user records
         +-- puzzles     daily puzzle lookup, pre-generation job
         +-- games       sessions, inputs, completion, timing

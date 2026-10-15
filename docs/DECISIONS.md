@@ -37,6 +37,7 @@ reviewed during the LAN stage with real users.
 |---|---|
 | Game input | 1 request/second per session, with a small burst allowance |
 | Completion submission | 5 requests/minute per session |
+| Heartbeat | 2 requests/minute per session |
 | Login attempt | 5 requests/minute per IP |
 
 The burst allowance is doing real work in the first row: a player clearing a
@@ -44,6 +45,10 @@ cascade of naked singles enters digits faster than one per second, and a strict
 1/s limit would throttle honest play. Implement as a token bucket — refill 1/s,
 bucket depth to be tuned — and have the client queue inputs rather than drop
 them. The queue must never be allowed to reorder writes.
+
+Everything a signed-in player does is limited per game session, not per IP: a
+whole 42 campus can reach the server from one public address. How the limiter
+is built is D17.
 
 ### D6 — Session binding and the day boundary
 A session is permanently bound to the puzzle it started on. A new session may
@@ -103,34 +108,54 @@ One column on `GameSession` holding the current grid. No `GameMove` table in the
 MVP. A move log can be added later if statistics or anti-cheat actually need
 one; building it now is the premature abstraction the project rules warn about.
 
-### D15 — Login sessions are signed JWTs, not server-side rows
-Decided 2026-09-29, replacing the server-side `app_sessions` table.
+### D15 — Login sessions: a short access JWT and a rotating refresh token
+Decided 2026-09-29, replacing a server-side `app_sessions` table. Revised
+2026-10-01: the single seven-day JWT revoked through `users.token_version` was
+replaced by the design below.
 
-After the 42 callback the server issues a JWT and sends it in the session
-cookie (`HttpOnly`, `SameSite=Lax`, `Secure` in production — unchanged). There
-is no session table.
+After the 42 callback the server issues two tokens, each in its own cookie.
+Both cookies are `HttpOnly`, `SameSite=Lax`, and `Secure` in production.
 
-- **Algorithm:** HS256 via PyJWT, signed with `SECRET_KEY`. The algorithm is
-  pinned when decoding (`algorithms=["HS256"]`), never taken from the token
-  header.
-- **Claims:** `sub` (`users.id`), `iat`, `exp`, `ver` (`users.token_version`).
-  Nothing else: the payload is readable by anyone holding the cookie, so it
-  carries no personal data.
-- **Lifetime:** 7 days. No refresh token, no sliding renewal. When it expires
-  the user signs in with 42 again; games survive that (D4).
-- **Revocation:** every authenticated request verifies signature and `exp`,
-  then loads the user by `sub`, which the game endpoints need anyway. No row
-  gives `401`, so deleting a user ends their sessions (Q8). A `ver` that does
-  not match `users.token_version` gives `401`.
-- **Logout** increments `users.token_version`. That signs the user out on
-  every device, not only the current one — the accepted cost of having no
-  per-device session record.
-- **Emergency:** rotating `SECRET_KEY` invalidates every token of every user.
+- **Access token:** cookie `access_token`, `Path=/`, 15 minutes. A JWT, HS256
+  via PyJWT, signed with `SECRET_KEY`. The algorithm is pinned when decoding
+  (`algorithms=["HS256"]`), never taken from the token header. Claims: `sub`
+  (`str(users.id)`), `iat`, `exp`. Nothing else: the payload is readable by
+  anyone holding the cookie, so it carries no personal data.
+- **Refresh token:** cookie `refresh_token`, `Path=/api/auth`, so the browser
+  sends it to the refresh and logout endpoints and nowhere else. An opaque
+  random value (`secrets.token_urlsafe(32)`), valid seven days. The server
+  keeps only its SHA-256 hash, in `refresh_tokens` (`DATA_MODEL.md`).
+- **Verification:** every authenticated request checks the access token's
+  signature and `exp`, then loads the user named by `sub`, which the game
+  endpoints need anyway. No row gives `401`, so deleting a user ends their
+  sessions (Q8).
+- **Rotation:** `POST /api/auth/refresh` seals the presented refresh token
+  (`used_at`), issues its successor in the same family with a fresh seven
+  days, and issues a new access token. A user who comes back at least once a
+  week stays signed in.
+- **Theft detection:** presenting a sealed refresh token again means two
+  parties hold a copy. The whole family — every token descended from that
+  sign-in — is deleted and the request gets `401`. Thief and user are both
+  signed out on that device; the user signs in with 42 again.
+- **Logout** deletes the family of the refresh token it receives: this device
+  only. Other devices keep their sessions.
+- **Revocation** is deleting rows. There is no `revoked_at` column.
+- **Emergency:** rotating `SECRET_KEY` invalidates every access token, forged
+  ones included. It does not sign anyone out by itself — refresh tokens are not
+  signed with it, so clients simply refresh back in. To sign everyone out, also
+  delete every row of `refresh_tokens`.
 
-What this gives up, stated so nobody rediscovers it: verification is not
-stateless — one primary-key read per request remains — and a single stolen
-token cannot be revoked on its own, only together with all of that user's
-other sessions.
+Consequence for the front end: on `401 not_authenticated` it calls
+`POST /api/auth/refresh` **once** and retries the request; if that also fails,
+the user is signed out. Two refreshes must never run at the same time: both
+would present the same token, and the second looks exactly like theft. One
+shared in-flight request, awaited by every caller.
+
+What this gives up, stated so nobody rediscovers it: after a logout, or after
+a stolen refresh token is detected, the access token already issued stays
+valid until it expires — up to 15 minutes. Closing that gap means a database
+check on every request (a `sid` claim matched against `refresh_tokens`);
+considered and parked on 2026-10-01.
 
 ### D16 — Only 42 accounts; no local accounts
 Decided 2026-10-06.
@@ -146,6 +171,44 @@ limiting). Those parts stay; the sign-up and login endpoints, the password
 columns, argon2 (`pwdlib`) and their tests are removed.
 
 Who among 42 accounts may play is D12 (confirmed 2026-10-06: any 42 account).
+
+### D17 — Rate limiting is an in-house token bucket
+Decided 2026-10-01.
+
+`app/services/rate_limit.py` implements D5's token bucket directly: one bucket
+per key, refilled at a constant rate, its capacity being the burst allowed. A
+refused request gets `429` with `Retry-After` in whole seconds, rounded up. The
+clock is injectable, so the tests control time instead of sleeping. Buckets
+that have refilled completely are forgotten, so the table of keys stays small.
+
+Why not `slowapi`, the usual library for this in FastAPI: the limiter was
+written to learn how rate limiting works inside, not because `slowapi` could not
+do the job. It stays because it is already built and tested, it answers in the
+common error envelope with `Retry-After` without any adapter, it adds no
+dependency outside the agreed stack, and it is small enough to explain line by
+line.
+
+Accepted limits for deployment stages 1 and 2: the buckets live in the
+process's memory. A restart empties them, and with several worker processes
+each one counts on its own. Revisit if the API ever runs as more than one
+process.
+
+### D18 — PKCE with 42, although 42 does not document it
+Decided 2026-10-10.
+
+The login uses PKCE (RFC 7636, method `S256`) on top of `state` and the client
+secret. The server creates the `code_verifier`, keeps it in `oauth_states`, and
+sends 42 only its challenge in the authorize redirect; the verifier itself
+goes to 42 in the code exchange. The browser never sees it.
+
+42's documentation does not mention PKCE, so whether 42 checks it is unknown.
+For a client that holds a secret, PKCE is defence in depth (OAuth 2.1 and
+RFC 9700 recommend it anyway), and learning it is part of the point of this
+project.
+
+To be checked with the real application in Phase 4: exchange a code with a
+**wrong** verifier. If 42 accepts it, PKCE protects nothing against 42, and
+`SECURITY.md` must say so.
 
 ### Q1 — The activity rule behind D6 (answered)
 
@@ -274,8 +337,6 @@ entries are visibly inactive rather than broken links.
 
 A *signed-out* visitor sees a short explanation of what the site is and a 42
 login button — and no puzzle, per Q13.
-React + TypeScript + Vite. Confirmed. A 9×9 grid does not discriminate between
-frameworks and the decision is not worth further debate.
 
 ---
 
@@ -338,8 +399,8 @@ If so it may carry constraints — a required run command, a defence, forbidden
 libraries — that change the setup.
 
 ### Q10 — Repository housekeeping
-The folder is not a Git repository yet. Public or private? Which licence?
-README aimed at whom?
+The repository exists, on GitHub (`gabrielrial/42_sudoku`). Still open: public
+or private? Which licence? README aimed at whom?
 
 ### Q11 — Puzzle pre-generation operations
 How many days ahead does the job generate? What happens if it fails and a day
