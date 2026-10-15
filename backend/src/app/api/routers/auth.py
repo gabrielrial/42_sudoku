@@ -11,7 +11,7 @@ from app.database.conf.dependencies import get_db
 from app.database.models.users import User
 from app.database.schema.user import UserPublic
 from app.services.auth import create_access_token, not_authenticated
-from app.services.oauth_pkce import finish_login, start_login, InvalidOAuthState
+from app.services.oauth_pkce import InvalidOAuthState, finish_login, start_login
 from app.services.refresh_token import (
     issue_refresh_token,
     revoke_refresh_token,
@@ -60,13 +60,12 @@ def callback(
     state: str,
     db: Annotated[Session, Depends(get_db)],
     provider: ProviderDep,
-    response: Response,
 ) -> RedirectResponse:
     try:
         finish_login(db, state)
     except InvalidOAuthState:
-        raise not_authenticated()
-    
+        raise not_authenticated() from None
+
     identity = provider.identity_from_code(code)
 
     user = db.query(User).filter(User.intra_id == identity.intra_id).first()
@@ -84,15 +83,18 @@ def callback(
     refresh_token = issue_refresh_token(db, user.id)
     db.commit()
 
-    set_auth_cookies(response, access_token, refresh_token)
+    redirect = RedirectResponse(url=settings.frontend_origin, status_code=302)
 
-    return RedirectResponse(url=settings.frontend_origin, status_code=302)
+    set_auth_cookies(redirect, access_token, refresh_token)
+
+    return redirect
 
 
 @router.get("/login")
 def login(db: Annotated[Session, Depends(get_db)], provider: ProviderDep) -> RedirectResponse:
 
     state = start_login(db)
+    db.commit()
     url = provider.authorize_url(state[0])
 
     return RedirectResponse(url, status_code=302)
