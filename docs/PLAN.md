@@ -96,12 +96,11 @@ Desirable:
 
 ## Before Stage 1 (developer)
 
-- [ ] Decide what to do with `68325ed`: fix it in Stage 1a (default), or revert
-  it now so CI is green before Stage 1 starts.
-- [ ] Merge `main` into `feature/identity-provider` (brings the current `docs/`).
-- [x] Answer P4 and P5 below (2026-10-20). After the merge, record them in
-  `DECISIONS.md` as D19 and D20 — not before: this branch's `DECISIONS.md` is
-  the stale one, and editing it now would conflict with `main`.
+- [x] `68325ed`: fixed in Stage 1a. It reached `main` with the merge of
+  `feature/identity-provider` (2026-10-20), so `main`'s CI is red until 1a lands.
+- [x] `feature/identity-provider` merged into `main` (2026-10-20); Stage 1
+  continues on `feature/oauth-completion`.
+- [x] P4 and P5 answered (2026-10-20), recorded as D19 and D20.
 
 ## Stages
 
@@ -110,7 +109,7 @@ changed, why, how to test it, a proposed commit message; then wait for the OK.
 Checks before "done": ruff, ruff format, mypy, pytest with 0 failures and the
 skip count read (0 once Stage 3 lands).
 
-### Stage 1 — Finish the 42 sign-in 🔑🔐 · `feature/identity-provider`
+### Stage 1 — Finish the 42 sign-in 🔑🔐 · `feature/oauth-completion`
 
 | Commit | Change | Tests |
 |---|---|---|
@@ -211,8 +210,8 @@ New, numbered `P` so they cannot collide with `DECISIONS.md`:
 | P1 | How the generation job runs: compose service looping, host cron calling a CLI, or a thread at API start-up | Stage 4 | compose service + idempotent CLI |
 | P2 | Cookies on the LAN: HTTPS through a proxy (Caddy, mkcert), or a `COOKIE_SECURE` setting independent of `APP_ENV` | Stage 7 | — |
 | P3 | Serving the built front end: FastAPI `StaticFiles` (one origin, nothing new) or an nginx/Caddy container | Stage 7 | FastAPI |
-| ~~P4~~ | ~~Fake provider: deployments must declare their environment; fake accepts `?as=<login>` to test with several users~~ | Stage 1 | **Answered 2026-10-20: yes to both** (Stage 1f) |
-| ~~P5~~ | ~~Database tests without `sudoku_test`: always fail, or fail unless an opt-out variable is set~~ | Stage 2 | **Answered 2026-10-20: always fail (A)** |
+| ~~P4~~ | ~~Fake provider: deployments must declare their environment; fake accepts `?as=<login>` to test with several users~~ | Stage 1 | **Answered 2026-10-20: yes to both** — D19 (Stage 1f) |
+| ~~P5~~ | ~~Database tests without `sudoku_test`: always fail, or fail unless an opt-out variable is set~~ | Stage 2 | **Answered 2026-10-20: always fail (A)** — D20 |
 | P6 | Makefile default goal: `all` instead of the destructive `re` | Stage 2 | `all` |
 | P7 | Front-end tests with vitest, or none | Stage 6 | vitest |
 | P8 | Source for published puzzles: SudokuWiki (Andrew Stuart) examples, copied exactly and cited | Stage 3 | SudokuWiki |

@@ -210,6 +210,30 @@ To be checked with the real application in Phase 4: exchange a code with a
 **wrong** verifier. If 42 accepts it, PKCE protects nothing against 42, and
 `SECURITY.md` must say so.
 
+### D19 — The environment is always declared; the fake provider can play anyone
+Decided 2026-10-20 (`PLAN.md` P4).
+
+`APP_ENV` has no default, neither in `Settings` nor in the compose file. A
+process that does not say which environment it is in refuses to start. The
+fake identity provider is refused in `production` (unchanged); what this adds
+is that forgetting `APP_ENV` on a LAN or public machine can no longer leave
+the fake provider quietly letting anyone in.
+
+In fake mode, `GET /api/auth/login?as=<login>` signs in as that made-up user,
+so two people — or two browsers — can be tested against each other by hand
+(authorisation between users, Phase 5). The login is validated; fake users
+never share an `intra_id` with a real 42 account. The real provider ignores
+`as`. The automated tests do not need it: they create their users directly.
+
+### D20 — Database tests fail, never skip, without their database
+Decided 2026-10-20 (`PLAN.md` P5, option A).
+
+A test that needs PostgreSQL fails when `DATABASE_URL` is unreachable or does
+not name a `*_test` database. There is no opt-out variable. A skipped
+database test looks green and proves nothing (`LESSONS.md` 14). Running the
+engine alone needs no database: `pytest tests/sudoku` never touches the
+fixture.
+
 ### Q1 — The activity rule behind D6 (answered)
 
 | Parameter | Value |
