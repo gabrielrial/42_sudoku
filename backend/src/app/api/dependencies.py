@@ -4,7 +4,7 @@ from fastapi import Cookie, Depends
 from sqlalchemy.orm import Session
 
 from app.api.cookies import ACCESS_COOKIE
-from app.config import Settings
+from app.config import get_settings
 from app.database.conf.dependencies import get_db
 from app.database.models.users import User
 from app.services.auth import not_authenticated, user_from_access_token
@@ -25,8 +25,8 @@ def get_current_user(
 
 
 def get_provider() -> IdentityProvider:
-    """Inyecta el proveedor de identidad (fake o real según settings)."""
-    settings = Settings()
+    """The identity provider the settings ask for: the fake one, or 42."""
+    settings = get_settings()
 
     if settings.auth_fake_provider_enabled:
         return FakeIdentityProvider()

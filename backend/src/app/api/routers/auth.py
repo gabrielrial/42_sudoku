@@ -6,7 +6,7 @@ from starlette.responses import RedirectResponse
 
 from app.api.cookies import REFRESH_COOKIE, clear_auth_cookies, set_auth_cookies
 from app.api.dependencies import ProviderDep
-from app.config import Settings
+from app.config import get_settings
 from app.database.conf.dependencies import get_db
 from app.database.models.users import User
 from app.database.schema.user import UserPublic
@@ -19,8 +19,6 @@ from app.services.refresh_token import (
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-settings = Settings()
 
 
 @router.post("/refresh", response_model=UserPublic)
@@ -62,11 +60,11 @@ def callback(
     provider: ProviderDep,
 ) -> RedirectResponse:
     try:
-        finish_login(db, state)
+        code_verifier = finish_login(db, state)
     except InvalidOAuthState:
         raise not_authenticated() from None
 
-    identity = provider.identity_from_code(code)
+    identity = provider.identity_from_code(code, code_verifier)
 
     user = db.query(User).filter(User.intra_id == identity.intra_id).first()
     if not user:
@@ -83,7 +81,7 @@ def callback(
     refresh_token = issue_refresh_token(db, user.id)
     db.commit()
 
-    redirect = RedirectResponse(url=settings.frontend_origin, status_code=302)
+    redirect = RedirectResponse(url=get_settings().frontend_origin, status_code=302)
 
     set_auth_cookies(redirect, access_token, refresh_token)
 
@@ -92,9 +90,8 @@ def callback(
 
 @router.get("/login")
 def login(db: Annotated[Session, Depends(get_db)], provider: ProviderDep) -> RedirectResponse:
-
-    state = start_login(db)
+    state, code_challenge = start_login(db)
     db.commit()
-    url = provider.authorize_url(state[0])
+    url = provider.authorize_url(state, code_challenge)
 
     return RedirectResponse(url, status_code=302)

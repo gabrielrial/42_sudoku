@@ -2,7 +2,8 @@
 
 These tests swap in the fake identity provider (A3), so they never call 42.
 In CI ``AUTH_FAKE_PROVIDER_ENABLED`` is off: without the swap, the real
-provider would be used.
+provider would be used. The PKCE tests swap in the real provider instead, with
+42 played by ``FakeFortyTwo`` (no network), to see what would reach 42.
 """
 
 from urllib.parse import parse_qs, urlsplit
@@ -18,8 +19,10 @@ from app.api.dependencies import get_provider
 from app.config import get_settings
 from app.database.models.oauth_states import OAuthState
 from app.database.models.users import User
-from app.services.identity_provider import FakeIdentityProvider
+from app.services.identity_provider import FakeIdentityProvider, RealIdentityProvider
+from app.services.oauth_pkce import code_challenge
 from tests.api.helpers import set_cookies
+from tests.services.test_identity_provider import FakeFortyTwo
 
 pytestmark = pytest.mark.db
 
@@ -71,10 +74,56 @@ def test_login_then_callback_signs_the_user_in(oauth_client: TestClient, db: Ses
     assert ACCESS_COOKIE in cookies
     assert REFRESH_COOKIE in cookies
 
-    expected = FakeIdentityProvider().identity_from_code("fake_code")
+    expected = FakeIdentityProvider.IDENTITY
     user = db.scalar(select(User).where(User.intra_id == expected.intra_id))
     assert user is not None
     assert user.login == expected.login
     assert user.campus_name == expected.campus_name
     # A state works once: the callback deletes it.
     assert _saved_state(db, state) is None
+
+
+# --- PKCE, end to end (D18) -------------------------------------------------------
+
+
+@pytest.fixture
+def fortytwo(db_client: TestClient) -> FakeFortyTwo:
+    """42, played without network, behind the real provider of ``db_client``'s app."""
+    fake = FakeFortyTwo()
+    provider: RealIdentityProvider = fake.provider()
+    app = db_client.app
+    assert isinstance(app, FastAPI)
+    app.dependency_overrides[get_provider] = lambda: provider
+    return fake
+
+
+def test_login_sends_42_the_challenge_of_the_saved_verifier(
+    db_client: TestClient, fortytwo: FakeFortyTwo, db: Session
+) -> None:
+    response = db_client.get(LOGIN, follow_redirects=False)
+
+    query = parse_qs(urlsplit(response.headers["location"]).query)
+    row = _saved_state(db, query["state"][0])
+    assert row is not None
+    assert query["code_challenge"] == [code_challenge(row.code_verifier)]
+    assert query["code_challenge_method"] == ["S256"]
+    assert row.code_verifier not in response.headers["location"]
+
+
+def test_callback_sends_42_the_verifier_saved_at_login(
+    db_client: TestClient, fortytwo: FakeFortyTwo, db: Session
+) -> None:
+    login = db_client.get(LOGIN, follow_redirects=False)
+    state = _state_from(login.headers["location"])
+    saved = _saved_state(db, state)
+    assert saved is not None
+    verifier = saved.code_verifier
+
+    response = db_client.get(
+        CALLBACK, params={"code": "code-from-42", "state": state}, follow_redirects=False
+    )
+
+    assert response.status_code == 302
+    exchange = parse_qs(fortytwo.requests[0].content.decode())
+    assert exchange["code_verifier"] == [verifier]
+    assert exchange["code"] == ["code-from-42"]
