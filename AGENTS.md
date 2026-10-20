@@ -16,6 +16,7 @@ through the official 42 OAuth2 API. Application timezone: **Europe/Berlin**.
 | File | Contents | Read it when |
 |---|---|---|
 | `docs/ROADMAP.md` | Phases, MVP scope, current status | Starting any session |
+| `docs/PLAN.md` | Stages to the MVP, known problems, open questions | Starting any session |
 | `docs/GAME_RULES.md` | Normative product behaviour | Touching puzzles, sessions or timing |
 | `docs/DIFFICULTY.md` | How puzzles are graded and generated | Touching the Sudoku engine |
 | `docs/ARCHITECTURE.md` | Stack, components, deployment | Making a structural change |
@@ -51,6 +52,18 @@ At the start of every session:
   official documentation.
 - If something cannot be verified — a doc behind a login, an unreachable
   service — say so plainly instead of asserting it.
+
+## Subagents
+
+Defined in `.claude/agents/`. Each one has a model suited to its job; the
+permission rules in `.claude/settings.json` apply to them too.
+
+| Agent | Model | Use it for |
+|---|---|---|
+| `planner` | opus, high effort | planning a stage, design decisions. Read-only |
+| `reviewer` | opus, high effort | reviewing a finished diff, always for security, engine or OAuth stages. Read-only |
+| `test-runner` | haiku, low effort | ruff, mypy, pytest, frontend build in the containers. Never edits |
+| `docs-keeper` | sonnet, medium effort | keeping `docs/` true to the code at the end of a stage |
 
 ## Dependencies
 
