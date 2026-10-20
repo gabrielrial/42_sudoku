@@ -86,6 +86,24 @@ Failure — bad or expired state, a missing `state` cookie, denied consent, 42
 unreachable, an account without a primary campus — redirects to the front end
 with an error code in the query string. No stack traces, no token values, ever.
 
+Every answer is a `302`, never JSON: the browser arrives here by navigation,
+not by `fetch`, so there is nobody to read a JSON body. Success goes to
+`FRONTEND_ORIGIN`; failure to `FRONTEND_ORIGIN/?login_error=<code>`. Either
+way the `state` cookie is cleared.
+
+| `login_error` | When |
+|---|---|
+| `invalid_state` | no `state`, no `state` cookie, the two differ, or the state is unknown, already used or expired |
+| `access_denied` | 42 came back with `error=access_denied`: the user refused at 42 |
+| `provider_error` | 42 came back with any other `error`, or with neither `code` nor `error`; the code exchange or `/v2/me` failed, timed out or answered something unexpected |
+| `no_primary_campus` | the 42 account has no primary campus (`DATA_MODEL.md`, `users`) |
+
+The checks run in that order. The `state` is spent as soon as it is accepted,
+before 42 is called, so a failed attempt cannot be replayed. Each failure is
+logged as a warning with its code and a short reason, never with the code,
+state, verifier, token or client secret; the `error` value from the URL is
+logged shortened and quoted.
+
 ### `POST /api/auth/refresh`
 
 No body; reads the `refresh_token` cookie. Rotates it (D15): the presented

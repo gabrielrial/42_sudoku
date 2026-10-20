@@ -6,6 +6,7 @@ provider would be used. The PKCE tests swap in the real provider instead, with
 42 played by ``FakeFortyTwo`` (no network), to see what would reach 42.
 """
 
+import logging
 from urllib.parse import parse_qs, urlsplit
 
 import httpx
@@ -13,7 +14,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx import Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.cookies import ACCESS_COOKIE, OAUTH_STATE_COOKIE, REFRESH_COOKIE
@@ -21,14 +22,10 @@ from app.api.dependencies import get_provider
 from app.config import get_settings
 from app.database.models.oauth_states import OAuthState
 from app.database.models.users import User
-from app.services.identity_provider import (
-    FakeIdentityProvider,
-    IdentityProviderError,
-    RealIdentityProvider,
-)
+from app.services.identity_provider import FakeIdentityProvider, RealIdentityProvider
 from app.services.oauth_pkce import code_challenge
-from tests.api.helpers import error_code, set_cookies
-from tests.services.test_identity_provider import FakeFortyTwo
+from tests.api.helpers import set_cookies
+from tests.services.test_identity_provider import ME, FakeFortyTwo
 
 pytestmark = pytest.mark.db
 
@@ -143,17 +140,30 @@ def _login(client: TestClient) -> str:
     return _state_from(client.get(LOGIN, follow_redirects=False).headers["location"])
 
 
-def _callback(client: TestClient, state: str) -> Response:
-    return client.get(
-        CALLBACK, params={"code": "code-from-42", "state": state}, follow_redirects=False
-    )
+def _callback(client: TestClient, state: str | None, **params: str) -> Response:
+    """The callback as 42 calls it: with a code, unless ``params`` say otherwise."""
+    query = {"code": "code-from-42", **params}
+    if state is not None:
+        query["state"] = state
+    return client.get(CALLBACK, params=query, follow_redirects=False)
+
+
+def _assert_login_error(response: Response, code: str) -> None:
+    """A failed sign-in: back to the front end with the code, signed in to nothing."""
+    assert response.status_code == 302
+    assert response.headers["location"] == f"{get_settings().frontend_origin}/?login_error={code}"
+    cookies = set_cookies(response)
+    assert ACCESS_COOKIE not in cookies
+    assert REFRESH_COOKIE not in cookies
+    assert cookies[OAUTH_STATE_COOKIE]["max-age"] == "0"  # the attempt is over either way
 
 
 def _assert_refused(response: Response) -> None:
-    assert response.status_code == 401
-    assert error_code(response) == "not_authenticated"
-    assert ACCESS_COOKIE not in set_cookies(response)
-    assert REFRESH_COOKIE not in set_cookies(response)
+    _assert_login_error(response, "invalid_state")
+
+
+def _user_count(db: Session) -> int:
+    return db.scalar(select(func.count()).select_from(User)) or 0
 
 
 def test_login_puts_the_state_in_a_cookie_only_the_callback_receives(
@@ -216,12 +226,113 @@ def test_a_state_is_spent_even_when_42_fails(
 ) -> None:
     fortytwo.token = lambda _: httpx.Response(503)
     state = _login(db_client)
-
-    with pytest.raises(IdentityProviderError):  # until 1c turns it into a redirect
-        _callback(db_client, state)
+    _assert_login_error(_callback(db_client, state), "provider_error")
     # In the app, get_db closes the session and drops whatever was not
     # committed. rollback() drops the same thing here.
     db.rollback()
 
-    _assert_refused(_callback(db_client, state))  # same state, same cookie
+    db_client.cookies.set(OAUTH_STATE_COOKIE, state)  # a replay brings the cookie back too
+    _assert_refused(_callback(db_client, state))
     assert len(fortytwo.requests) == 1  # 42 was asked once, never again
+
+
+# --- every other way a sign-in can fail: back to the front end with a code -------
+
+
+def test_a_callback_without_a_state_is_refused(
+    db_client: TestClient, fortytwo: FakeFortyTwo
+) -> None:
+    _login(db_client)
+
+    _assert_refused(_callback(db_client, None))
+    assert fortytwo.requests == []
+
+
+def test_a_denied_consent_says_so(db_client: TestClient, fortytwo: FakeFortyTwo) -> None:
+    # The user pressed "cancel" at 42: it comes back with error, not code.
+    state = _login(db_client)
+
+    response = db_client.get(
+        CALLBACK, params={"error": "access_denied", "state": state}, follow_redirects=False
+    )
+
+    _assert_login_error(response, "access_denied")
+    assert fortytwo.requests == []
+
+
+def test_a_denied_consent_spends_the_state(db_client: TestClient, fortytwo: FakeFortyTwo) -> None:
+    state = _login(db_client)
+    _callback(db_client, state, error="access_denied")
+
+    db_client.cookies.set(OAUTH_STATE_COOKIE, state)
+    _assert_refused(_callback(db_client, state))
+
+
+def test_any_other_error_from_42_is_a_provider_error(
+    db_client: TestClient, fortytwo: FakeFortyTwo
+) -> None:
+    state = _login(db_client)
+
+    response = db_client.get(
+        CALLBACK, params={"error": "server_error", "state": state}, follow_redirects=False
+    )
+
+    _assert_login_error(response, "provider_error")
+
+
+def test_a_callback_with_neither_code_nor_error_is_a_provider_error(
+    db_client: TestClient, fortytwo: FakeFortyTwo
+) -> None:
+    state = _login(db_client)
+
+    response = db_client.get(CALLBACK, params={"state": state}, follow_redirects=False)
+
+    _assert_login_error(response, "provider_error")
+    assert fortytwo.requests == []
+
+
+def test_a_code_42_refuses_signs_nobody_in(
+    db: Session, db_client: TestClient, fortytwo: FakeFortyTwo
+) -> None:
+    fortytwo.token = lambda _: httpx.Response(400, json={"error": "invalid_grant"})
+    users_before = _user_count(db)
+
+    _assert_login_error(_callback(db_client, _login(db_client)), "provider_error")
+    assert _user_count(db) == users_before
+
+
+def test_an_account_without_a_primary_campus_is_turned_away(
+    db: Session, db_client: TestClient, fortytwo: FakeFortyTwo
+) -> None:
+    me = dict(ME, campus_users=[{"campus_id": 21, "is_primary": False}])
+    fortytwo.me = lambda _: httpx.Response(200, json=me)
+    users_before = _user_count(db)
+
+    _assert_login_error(_callback(db_client, _login(db_client)), "no_primary_campus")
+    assert _user_count(db) == users_before
+
+
+def test_a_failure_is_logged_without_anything_secret(
+    db_client: TestClient, fortytwo: FakeFortyTwo, caplog: pytest.LogCaptureFixture
+) -> None:
+    fortytwo.token = lambda _: httpx.Response(503)
+    state = _login(db_client)
+
+    with caplog.at_level(logging.WARNING, logger="app.api.routers.auth"):
+        _callback(db_client, state)
+
+    assert "provider_error" in caplog.text
+    for secret in (state, "code-from-42", "client-secret-456"):
+        assert secret not in caplog.text
+
+
+def test_an_error_from_the_url_cannot_forge_log_lines(
+    db_client: TestClient, fortytwo: FakeFortyTwo, caplog: pytest.LogCaptureFixture
+) -> None:
+    state = _login(db_client)
+
+    with caplog.at_level(logging.WARNING, logger="app.api.routers.auth"):
+        _callback(db_client, state, error="x\nCRITICAL everything is on fire")
+
+    assert len(caplog.records) == 1
+    assert "\n" not in caplog.records[0].getMessage()
