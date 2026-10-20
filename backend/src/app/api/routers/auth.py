@@ -1,10 +1,18 @@
+import secrets
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, Response, status
 from sqlalchemy.orm import Session
 from starlette.responses import RedirectResponse
 
-from app.api.cookies import REFRESH_COOKIE, clear_auth_cookies, set_auth_cookies
+from app.api.cookies import (
+    OAUTH_STATE_COOKIE,
+    REFRESH_COOKIE,
+    clear_auth_cookies,
+    clear_oauth_state_cookie,
+    set_auth_cookies,
+    set_oauth_state_cookie,
+)
 from app.api.dependencies import ProviderDep
 from app.config import get_settings
 from app.database.conf.dependencies import get_db
@@ -58,11 +66,20 @@ def callback(
     state: str,
     db: Annotated[Session, Depends(get_db)],
     provider: ProviderDep,
+    state_cookie: Annotated[str | None, Cookie(alias=OAUTH_STATE_COOKIE)] = None,
 ) -> RedirectResponse:
+    # The state must be the one this browser was given at /login, not merely
+    # one the server issued: otherwise an attacker's own valid state, in a link
+    # sent to a victim, signs the victim in to the attacker's account.
+    if state_cookie is None or not _same(state_cookie, state):
+        raise not_authenticated()
+
     try:
         code_verifier = finish_login(db, state)
     except InvalidOAuthState:
         raise not_authenticated() from None
+    # Spent before 42 is called: if anything below fails, the state stays used.
+    db.commit()
 
     identity = provider.identity_from_code(code, code_verifier)
 
@@ -84,6 +101,7 @@ def callback(
     redirect = RedirectResponse(url=get_settings().frontend_origin, status_code=302)
 
     set_auth_cookies(redirect, access_token, refresh_token)
+    clear_oauth_state_cookie(redirect)
 
     return redirect
 
@@ -94,4 +112,12 @@ def login(db: Annotated[Session, Depends(get_db)], provider: ProviderDep) -> Red
     db.commit()
     url = provider.authorize_url(state, code_challenge)
 
-    return RedirectResponse(url, status_code=302)
+    redirect = RedirectResponse(url, status_code=302)
+    set_oauth_state_cookie(redirect, state)
+    return redirect
+
+
+def _same(a: str, b: str) -> bool:
+    """Constant-time comparison. Bytes, because ``compare_digest`` refuses
+    non-ASCII ``str`` and the URL's ``state`` is whatever the caller sent."""
+    return secrets.compare_digest(a.encode(), b.encode())
