@@ -99,7 +99,9 @@ Desirable:
 - [ ] Decide what to do with `68325ed`: fix it in Stage 1a (default), or revert
   it now so CI is green before Stage 1 starts.
 - [ ] Merge `main` into `feature/identity-provider` (brings the current `docs/`).
-- [ ] Answer P4 and P5 below.
+- [x] Answer P4 and P5 below (2026-10-20). After the merge, record them in
+  `DECISIONS.md` as D19 and D20 — not before: this branch's `DECISIONS.md` is
+  the stale one, and editing it now would conflict with `main`.
 
 ## Stages
 
@@ -117,6 +119,7 @@ skip count read (0 once Stage 3 lands).
 | 1c | Every failure → `302` to `FRONTEND_ORIGIN/?login_error=<code>`; `error=access_denied` handled; user and token in one commit | one test per error code; no detail leaks |
 | 1d | Upsert refreshes a returning user; `login` collision logged, stored value kept | returning user with a new login or campus |
 | 1e | Rate limit on `/login` | `429` on the real route |
+| 1f | P4: `APP_ENV` required, with no default in `Settings` or compose, so a deployment that forgets it does not start; fake provider honours `?as=<login>` (validated format, fake users kept apart from real `intra_id`s), ignored outside fake mode | missing `APP_ENV` refuses to start; fake refused in production; `?as=` gives two distinct users; `?as=` ignored by the real provider |
 
 Done: login → callback → `/api/users/me` through the fake provider in one
 test; every case in `API.md` tested. Then, by the developer: register the app
@@ -125,7 +128,10 @@ test; every case in `API.md` tested. Then, by the developer: register the app
 ### Stage 2 — Test and tooling floor · `chore/test-hardening`
 
 - `docker-entrypoint-initdb.d` script that creates `sudoku_test`.
-- Database fixture fails instead of skipping (per P5).
+- Database fixture fails instead of skipping, with no opt-out (P5, option A):
+  an unreachable database, or a `DATABASE_URL` not ending in `_test`, is an
+  error. `pytest tests/sudoku` still runs the engine alone, since it never uses
+  the fixture.
 - `make test`, `make check`; non-destructive default goal (per P6).
 - CI: `alembic upgrade head` + `alembic check` on an empty database.
 - `npm ci` in the frontend Dockerfile.
@@ -205,8 +211,8 @@ New, numbered `P` so they cannot collide with `DECISIONS.md`:
 | P1 | How the generation job runs: compose service looping, host cron calling a CLI, or a thread at API start-up | Stage 4 | compose service + idempotent CLI |
 | P2 | Cookies on the LAN: HTTPS through a proxy (Caddy, mkcert), or a `COOKIE_SECURE` setting independent of `APP_ENV` | Stage 7 | — |
 | P3 | Serving the built front end: FastAPI `StaticFiles` (one origin, nothing new) or an nginx/Caddy container | Stage 7 | FastAPI |
-| P4 | Fake provider: allowed only for `APP_ENV` `development`/`test`, deployments must declare their environment; fake accepts `?as=<login>` to test with several users | Stage 1 | yes to both |
-| P5 | Database tests without `sudoku_test`: always fail, or fail unless an opt-out variable is set (engine-only runs) | Stage 2 | — |
+| ~~P4~~ | ~~Fake provider: deployments must declare their environment; fake accepts `?as=<login>` to test with several users~~ | Stage 1 | **Answered 2026-10-20: yes to both** (Stage 1f) |
+| ~~P5~~ | ~~Database tests without `sudoku_test`: always fail, or fail unless an opt-out variable is set~~ | Stage 2 | **Answered 2026-10-20: always fail (A)** |
 | P6 | Makefile default goal: `all` instead of the destructive `re` | Stage 2 | `all` |
 | P7 | Front-end tests with vitest, or none | Stage 6 | vitest |
 | P8 | Source for published puzzles: SudokuWiki (Andrew Stuart) examples, copied exactly and cited | Stage 3 | SudokuWiki |
