@@ -92,6 +92,10 @@ diff` and `git log` are fine and encouraged.
 When a change is ready, say plainly which files moved and what a commit message
 might cover. The decision to record it is the developer's.
 
+A proposed commit message describes the change and its reason, nothing else:
+no `Co-Authored-By` trailer, no "generated with" line, no mention of an
+assistant or a tool.
+
 Before that commit is made, these must hold:
 
 - Tests pass.
