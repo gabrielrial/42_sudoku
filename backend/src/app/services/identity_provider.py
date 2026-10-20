@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Protocol
+from urllib.parse import urlencode
 
 import httpx
 
@@ -95,6 +96,6 @@ class RealIdentityProvider:
         return Identity(
             intra_id=user_data["id"],
             login=user_data["login"],
-            campus_id=campus_info["id"],
+            campus_id=campus_info["comapus"],
             campus_name=campus_info["name"],
         )
