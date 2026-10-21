@@ -16,8 +16,10 @@ module only puts them where 42 expects them.
 When two accounts claim one login (``DATA_MODEL.md``, ``users``), the server
 asks 42 for the other account's current login with ``GET /v2/users/:id``,
 using an application token (client credentials, RFC 6749 section 4.4) that is
-fetched for that one call and never stored (D11). Developer-checked on
-2026-10-20 that 42 serves that endpoint to an application token.
+fetched for that one call and never stored (D11). Developer-checked: 42
+serves that endpoint to an application token (2026-10-20), and issues the
+token for a form-encoded ``grant_type=client_credentials`` request with the
+client id and secret (2026-10-21).
 
 What ``/v2/me`` contains is taken from the fields this code reads
 (``campus_users[].is_primary``, ``campus_users[].campus_id``, ``campus[].id``,

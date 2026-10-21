@@ -246,7 +246,10 @@ calls it now, and the person signing in takes the login. The `UNIQUE` on
 
 Finding out the other account's login is one call, `GET /v2/users/:id`, with
 an application token (client credentials). The developer checked on 2026-10-20
-that 42 serves that endpoint to an application token. The token is fetched for
+that 42 serves that endpoint to an application token, and on 2026-10-21 that
+42 issues that token for a form-encoded `POST /oauth/token` with
+`grant_type=client_credentials`, `client_id` and `client_secret` — the
+request the server sends. The token is fetched for
 that call and discarded, as D11 asks of tokens, and the call happens only on a
 collision, so the normal sign-in still makes exactly the two calls of D11.
 
