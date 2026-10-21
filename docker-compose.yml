@@ -24,7 +24,8 @@ services:
   api:
     build: ./backend
     environment:
-      APP_ENV: ${APP_ENV:-development}
+      # Required, no default (D19): compose refuses to start without it.
+      APP_ENV: ${APP_ENV:?set APP_ENV in .env - development, test or production}
       SECRET_KEY: ${SECRET_KEY:-dev-only-not-a-real-secret}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-sudoku}:${POSTGRES_PASSWORD:-sudoku}@db:5432/${POSTGRES_DB:-sudoku}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}

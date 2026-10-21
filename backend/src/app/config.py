@@ -10,7 +10,10 @@ Environment = Literal["development", "test", "production"]
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    app_env: Environment = "development"
+    # No default (D19): a process that does not say where it runs refuses to
+    # start, so a forgotten APP_ENV cannot leave a deployment in development
+    # mode with the fake identity provider letting anyone in.
+    app_env: Environment
 
     # Generate with: python3 -c "import secrets; print(secrets.token_hex(32))"
     secret_key: str

@@ -25,6 +25,7 @@ from app.services.identity_provider import (
     IdentityProviderError,
     NoPrimaryCampus,
     RealIdentityProvider,
+    fake_identity,
 )
 
 CLIENT_ID = "client-id-123"
@@ -315,6 +316,13 @@ def test_every_failed_lookup_is_an_identity_provider_error(
 # --- the fake provider ----------------------------------------------------------------
 
 
+def _fake_sign_in(login: str | None = None) -> Identity:
+    """The fake's whole round trip: the code in its authorize URL, back to an identity."""
+    fake = FakeIdentityProvider() if login is None else FakeIdentityProvider(login)
+    code = _query(fake.authorize_url("some-state", "some-challenge"))["code"]
+    return FakeIdentityProvider().identity_from_code(code, VERIFIER)
+
+
 def test_the_fake_sends_the_browser_straight_to_the_callback() -> None:
     url = FakeIdentityProvider().authorize_url("some-state", "some-challenge")
 
@@ -323,10 +331,38 @@ def test_the_fake_sends_the_browser_straight_to_the_callback() -> None:
     assert _query(url)["state"] == "some-state"
 
 
-def test_the_fake_identity_cannot_be_a_real_42_account() -> None:
-    identity = FakeIdentityProvider().identity_from_code("anything", VERIFIER)
+def test_the_fake_signs_in_as_its_default_login() -> None:
+    assert _fake_sign_in().login == FakeIdentityProvider.DEFAULT_LOGIN
 
-    assert identity.intra_id < 0  # 42's ids are positive
+
+def test_the_fake_signs_in_as_the_login_it_was_given() -> None:
+    # The login is chosen at /login and comes back inside the code, as a real
+    # code would carry its user (D19).
+    assert _fake_sign_in("bob").login == "bob"
+
+
+def test_two_fake_logins_are_two_accounts_and_each_is_stable() -> None:
+    assert _fake_sign_in("ana").intra_id != _fake_sign_in("bob").intra_id
+    assert _fake_sign_in("ana") == _fake_sign_in("ana") == fake_identity("ana")
+
+
+@pytest.mark.parametrize("login", ["fake-user", "ana", "bob", "a", "x" * 32, "0-9"])
+def test_a_fake_identity_cannot_be_a_real_42_account(login: str) -> None:
+    intra_id = fake_identity(login).intra_id
+
+    assert -(2**31) <= intra_id < 0  # 42's ids are positive; fits users.intra_id (INTEGER)
+
+
+@pytest.mark.parametrize("login", ["", "Bob", "bob smith", "bob&as=eve", "é", "x" * 33])
+def test_the_fake_refuses_a_malformed_login(login: str) -> None:
+    with pytest.raises(ValueError):
+        FakeIdentityProvider(login)
+
+
+@pytest.mark.parametrize("code", ["anything", "fake:", "fake:Bob", "fake-user"])
+def test_the_fake_refuses_a_code_it_did_not_issue(code: str) -> None:
+    with pytest.raises(IdentityProviderError):
+        FakeIdentityProvider().identity_from_code(code, VERIFIER)
 
 
 def test_the_fake_knows_no_other_account() -> None:

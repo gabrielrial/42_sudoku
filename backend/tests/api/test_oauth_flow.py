@@ -19,10 +19,15 @@ from sqlalchemy.orm import Session
 
 from app.api.cookies import ACCESS_COOKIE, OAUTH_STATE_COOKIE, REFRESH_COOKIE
 from app.api.dependencies import get_provider
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.database.models.oauth_states import OAuthState
 from app.database.models.users import User
-from app.services.identity_provider import FakeIdentityProvider, RealIdentityProvider
+from app.services.identity_provider import (
+    AUTHORIZE_URL,
+    FakeIdentityProvider,
+    RealIdentityProvider,
+    fake_identity,
+)
 from app.services.oauth_pkce import code_challenge
 from tests.api.helpers import set_cookies
 from tests.services.test_identity_provider import ME, FakeFortyTwo
@@ -67,9 +72,8 @@ def test_login_then_callback_signs_the_user_in(oauth_client: TestClient, db: Ses
     login = oauth_client.get(LOGIN, follow_redirects=False)
     state = _state_from(login.headers["location"])
 
-    response = oauth_client.get(
-        CALLBACK, params={"code": "fake_code", "state": state}, follow_redirects=False
-    )
+    # Where the fake provider sends the browser: the callback, with its code.
+    response = oauth_client.get(login.headers["location"], follow_redirects=False)
 
     assert response.status_code == 302
     assert response.headers["location"] == get_settings().frontend_origin
@@ -77,7 +81,7 @@ def test_login_then_callback_signs_the_user_in(oauth_client: TestClient, db: Ses
     assert ACCESS_COOKIE in cookies
     assert REFRESH_COOKIE in cookies
 
-    expected = FakeIdentityProvider.IDENTITY
+    expected = fake_identity(FakeIdentityProvider.DEFAULT_LOGIN)
     user = db.scalar(select(User).where(User.intra_id == expected.intra_id))
     assert user is not None
     assert user.login == expected.login
@@ -396,3 +400,64 @@ def test_login_is_limited_per_ip(
     assert OAUTH_STATE_COOKIE not in set_cookies(response)
     # Refused before any work: no state is created for a refused attempt.
     assert db.scalar(select(func.count()).select_from(OAuthState)) == states_before
+
+
+# --- ?as=<login>: choosing the fake user (D19) ----------------------------------------
+# These go through the real get_provider, with the settings swapped, so that
+# what decides between fake and real is the code under test.
+
+
+def _with_settings(client: TestClient, **changes: object) -> TestClient:
+    app = client.app
+    assert isinstance(app, FastAPI)
+    settings: Settings = get_settings().model_copy(update=changes)
+    app.dependency_overrides[get_settings] = lambda: settings
+    return client
+
+
+def _sign_in_as(client: TestClient, login: str) -> Response:
+    """/login?as=login, then its callback, as the browser would follow them."""
+    login_response = client.get(LOGIN, params={"as": login}, follow_redirects=False)
+    assert login_response.status_code == 302
+    return client.get(login_response.headers["location"], follow_redirects=False)
+
+
+def test_in_fake_mode_as_chooses_who_signs_in(db_client: TestClient) -> None:
+    _with_settings(db_client, auth_fake_provider_enabled=True)
+
+    assert _sign_in_as(db_client, "bob").status_code == 302
+
+    assert db_client.get("/api/users/me").json()["login"] == "bob"
+
+
+def test_two_fake_logins_are_two_users(db: Session, db_client: TestClient) -> None:
+    _with_settings(db_client, auth_fake_provider_enabled=True)
+
+    _sign_in_as(db_client, "ana")
+    _sign_in_as(db_client, "bob")
+
+    db.expire_all()
+    ana = db.scalar(select(User).where(User.login == "ana"))
+    bob = db.scalar(select(User).where(User.login == "bob"))
+    assert ana is not None and bob is not None
+    assert ana.id != bob.id
+    assert ana.intra_id < 0 and bob.intra_id < 0
+
+
+def test_in_fake_mode_a_malformed_as_is_refused(db_client: TestClient) -> None:
+    _with_settings(db_client, auth_fake_provider_enabled=True)
+
+    response = db_client.get(LOGIN, params={"as": "Bob Smith"}, follow_redirects=False)
+
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "invalid_request"
+
+
+def test_with_42_as_is_ignored(db_client: TestClient) -> None:
+    _with_settings(db_client, auth_fake_provider_enabled=False, fortytwo_client_id="uid")
+
+    response = db_client.get(LOGIN, params={"as": "bob"}, follow_redirects=False)
+
+    location = response.headers["location"]
+    assert location.startswith(AUTHORIZE_URL)  # off to 42, which decides who signs in
+    assert "bob" not in location

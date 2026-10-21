@@ -36,6 +36,20 @@ def test_secret_key_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
         Settings(_env_file=None, database_url="postgresql+psycopg://u:p@localhost/x")
 
 
+def test_app_env_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
+    # D19: no default, so a deployment that forgets it does not start in
+    # development mode with the fake identity provider on.
+    monkeypatch.delenv("APP_ENV", raising=False)
+
+    with pytest.raises(ValidationError, match="app_env"):
+        Settings(_env_file=None, secret_key=GOOD_KEY, database_url="postgresql+psycopg://u:p@h/x")
+
+
+@pytest.mark.parametrize("env", ["development", "test"])
+def test_the_fake_provider_is_allowed_outside_production(env: str) -> None:
+    assert _settings(app_env=env, auth_fake_provider_enabled=True).auth_fake_provider_enabled
+
+
 def test_development_accepts_a_short_key() -> None:
     assert _settings(app_env="development", secret_key="short").secret_key == "short"
 

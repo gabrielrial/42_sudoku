@@ -73,6 +73,11 @@ page (a `?next=` is postponed; see `DATA_MODEL.md`, `oauth_states`).
 
 PKCE is `DECISIONS.md` D18. Limited to 5 requests/minute per IP (D5).
 
+Fake identity provider only (D19): `?as=<login>` signs in as that made-up
+user — 1 to 32 characters of `a-z`, `0-9` and `-`, otherwise
+`422 invalid_request`. With the real provider the parameter is ignored. It is
+left out of the OpenAPI schema.
+
 ### `GET /api/auth/callback?code=…&state=…`
 
 Checks that the `state` in the URL matches the `state` cookie, validates and

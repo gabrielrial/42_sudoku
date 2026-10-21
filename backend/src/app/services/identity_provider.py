@@ -27,6 +27,8 @@ What ``/v2/me`` contains is taken from the fields this code reads
 could not be checked here.
 """
 
+import hashlib
+import re
 from dataclasses import dataclass
 from typing import Protocol
 from urllib.parse import urlencode
@@ -85,21 +87,46 @@ class IdentityProvider(Protocol):
         ...
 
 
-class FakeIdentityProvider:
-    """Signs everybody in as the same made-up account, without leaving the server.
+FAKE_LOGIN = re.compile(r"[a-z0-9-]{1,32}")
+"""What the fake provider accepts as a login: short, lowercase, URL-safe."""
 
-    The authorize URL is the callback itself, as a path: the browser stays on
-    whichever origin it used for ``/login``, so no host or port is assumed.
+
+def fake_identity(login: str) -> Identity:
+    """The made-up account behind a fake login.
+
+    Its ``intra_id`` is negative — 42's ids are positive, so a fake user can
+    never be a real one — and derived from the login, so the same login is the
+    same user on every sign-in. It fits ``users.intra_id`` (``INTEGER``).
+    """
+    digest = hashlib.sha256(login.encode()).digest()
+    intra_id = -(int.from_bytes(digest[:4], "big") >> 1) - 1  # -1 .. -2**31
+    return Identity(intra_id=intra_id, login=login, campus_id=-1, campus_name="Fake campus")
+
+
+class FakeIdentityProvider:
+    """Signs in as a made-up account, without leaving the server (A3).
+
+    Which account is chosen at ``/login`` (``?as=<login>``, D19) and travels to
+    the callback inside the code, as a real code would. The authorize URL is
+    the callback itself, as a path: the browser stays on whichever origin it
+    used for ``/login``, so no host or port is assumed.
     """
 
-    IDENTITY = Identity(intra_id=-1, login="fake-user", campus_id=-1, campus_name="Fake campus")
-    """Negative ids: 42's own ids are positive, so a fake user can never be a real one."""
+    DEFAULT_LOGIN = "fake-user"
+
+    def __init__(self, login: str = DEFAULT_LOGIN) -> None:
+        if not FAKE_LOGIN.fullmatch(login):
+            raise ValueError("a fake login is 1-32 characters of a-z, 0-9 and '-'")
+        self.login = login
 
     def authorize_url(self, state: str, code_challenge: str) -> str:
-        return "/api/auth/callback?" + urlencode({"code": "fake-code", "state": state})
+        return "/api/auth/callback?" + urlencode({"code": f"fake:{self.login}", "state": state})
 
     def identity_from_code(self, code: str, code_verifier: str) -> Identity:
-        return self.IDENTITY
+        login = code.removeprefix("fake:")
+        if login == code or not FAKE_LOGIN.fullmatch(login):
+            raise IdentityProviderError("not a code the fake provider issued")
+        return fake_identity(login)
 
     def current_login(self, intra_id: int) -> str | None:
         return None  # the fake has no directory of accounts
