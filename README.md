@@ -38,33 +38,37 @@ docker compose exec api alembic upgrade head
 
 `Ctrl-C` stops everything. `docker compose down -v` also deletes the database.
 
-The `Makefile` wraps this: `make all` starts and migrates, keeping the data;
-plain `make` starts from zero and **deletes the database**.
+The `Makefile` wraps this: plain `make` (or `make all`) starts and migrates,
+keeping the data. `make re` starts from zero and **deletes the database**; so
+does `make fclean`. Only those two, typed on purpose, ever delete it.
 
 Source is bind-mounted, so edits reload without a rebuild. Changing a Dockerfile
 or a dependency does need `docker compose up --build`.
 
 ### Checks
 
-The same four the CI runs, against the running container:
+What CI checks, against the running containers:
 
 ```bash
-docker compose exec api ruff check .
-docker compose exec api ruff format .     # --check in CI; this one fixes
-docker compose exec api mypy src
-docker compose exec api pytest
+make check     # lint, format, types, tests, front-end build
+make test      # the tests alone
 ```
 
-The database tests use their own database, `sudoku_test`, and are **skipped,
-not failed**, when it does not exist. Create it once, and again after every
-`make` (which deletes it), then run the tests against it:
+To let the formatter fix things instead of only checking:
+`docker compose exec api ruff format .`
+
+The database tests use their own database, `sudoku_test`, which PostgreSQL
+creates the first time it starts on an empty volume (`db-init/`), so it comes
+back after `make re`. Without it the database tests **fail**, never skip
+(`DECISIONS.md` D20), with a message saying how to fix it. On a volume made
+before `db-init/` existed, create it once:
 
 ```bash
-docker compose exec db createdb -U sudoku sudoku_test
-docker compose exec -e DATABASE_URL=postgresql+psycopg://sudoku:sudoku@db:5432/sudoku_test api pytest -rs
+docker compose exec db sh -c 'createdb -U "$POSTGRES_USER" sudoku_test'
 ```
 
-Only the two published-puzzle checks in `test_verification.py` should skip.
+`pytest tests/sudoku` runs the engine alone and needs no database. Only the two
+published-puzzle checks in `test_verification.py` should skip.
 
 After changing a model, `docker compose exec api alembic check` must print
 "No new upgrade operations detected" once the new migration is applied. Read
