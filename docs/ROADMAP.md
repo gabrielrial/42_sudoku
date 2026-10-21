@@ -100,15 +100,15 @@ Status:
 
 - On `main`: the session (access and refresh tokens, rotation, theft
   detection, logout, `GET /api/users/me`); the `Origin` check against CSRF;
-  the login rate limiter (D17), not yet attached to a route; the common error
+  the login rate limiter (D17); the common error
   envelope; `users` keyed on the 42 identity; `oauth_states` with the PKCE
   helpers.
-- On `feature/identity-provider`, not merged: the identity provider interface
-  with a fake and a real implementation, and first versions of
-  `GET /api/auth/login` and `GET /api/auth/callback`. Still to do before it
-  merges: sending the PKCE challenge and verifier, the `state` cookie,
-  refreshing a returning user, error redirects, the login rate limit, and a
-  test of a whole sign-in through the fake provider.
+- On `feature/oauth-completion` (Stage 1 of `PLAN.md`), not merged yet: the
+  whole sign-in. PKCE sent to 42 (D18); the `state` cookie against login
+  CSRF; every failure a redirect with `?login_error=`; returning users
+  refreshed and reassigned logins resolved through 42 (D21); `/login`
+  rate-limited; `APP_ENV` required and `?as=<login>` for the fake provider
+  (D19). Tested through the fake provider and a simulated 42, without network.
 - Then: register the application with 42 (Q3) and sign in for real, including
   the PKCE check in D18.
 - A username/password login was built first, as a learning step towards the

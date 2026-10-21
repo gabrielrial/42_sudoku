@@ -28,28 +28,31 @@ these are reviewed line by line by the developer before they are accepted
 - Checks on the branch: ruff fails (1, from `68325ed`), format and mypy pass,
   pytest 227 passed / 2 skipped.
 
+Update 2026-10-21: Stage 1's code is done on `feature/oauth-completion`
+(1a–1f); items 1–9 below are fixed there. Pytest: 312 passed, 2 skipped.
+
 ## Known problems, by impact
 
 Necessary — bugs and security holes:
 
-1. Commit `68325ed` ("fix: variable name") in `identity_provider.py`:
+1. ✅ Commit `68325ed` ("fix: variable name") in `identity_provider.py`:
    `campus_info["comapus"]` (`KeyError` on every real login) and an unused
    import (ruff F401, so CI is red). The previous `campus_info["id"]` was
    correct. Fixed in Stage 1a.
-2. PKCE is not actually used: the challenge is never sent to 42, and the
+2. ✅ PKCE is not actually used: the challenge is never sent to 42, and the
    verifier `finish_login` returns is thrown away instead of being sent in the
    code exchange (D18 decided, not implemented).
-3. No `state` cookie: login CSRF (`LESSONS.md` E) is open.
-4. A failed callback leaves its `state` reusable: the row deletion is rolled
+3. ✅ No `state` cookie: login CSRF (`LESSONS.md` E) is open.
+4. ✅ A failed callback leaves its `state` reusable: the row deletion is rolled
    back when 42 fails, because nothing commits it before the provider call.
-5. Callback failures are a JSON `401` or a `500` (no httpx timeout, uncaught
+5. ✅ Callback failures are a JSON `401` or a `500` (no httpx timeout, uncaught
    `HTTPStatusError`/`ValueError`/`KeyError`); `API.md` requires a redirect to
    the front end with an error code. `?error=access_denied` is not handled.
-6. The authorize URL is concatenated, not URL-encoded.
-7. A returning user's `login` and campus are not refreshed; the `login` unique
+6. ✅ The authorize URL is concatenated, not URL-encoded.
+7. ✅ A returning user's `login` and campus are not refreshed; the `login` unique
    collision of `DATA_MODEL.md` is not handled.
-8. The login rate limit is not attached to `/login`.
-9. The fake identity provider is only refused in `production`, and compose
+8. ✅ The login rate limit is not attached to `/login`.
+9. ✅ The fake identity provider is only refused in `production`, and compose
    enables it by default: a LAN deployment with `APP_ENV=development` lets
    anyone in. It also hard-codes `localhost:8001` and a plausible real login.
 10. `Secure` cookies are tied to `APP_ENV=production`: over plain HTTP on the
@@ -110,6 +113,12 @@ Checks before "done": ruff, ruff format, mypy, pytest with 0 failures and the
 skip count read (0 once Stage 3 lands).
 
 ### Stage 1 — Finish the 42 sign-in 🔑🔐 · `feature/oauth-completion`
+
+**Code done 2026-10-21 (1a–1f).** Left for the developer: register the
+app, a real sign-in, the wrong-verifier check. Two changes to the plan on
+the way: 1d asks 42 for a stale holder's current login instead of keeping
+the stored one (D21); the fake provider redirects to the callback by path
+rather than a URL taken from the settings.
 
 | Commit | Change | Tests |
 |---|---|---|
@@ -193,6 +202,11 @@ front end served per P3, `FORWARDED_ALLOW_IPS`, HTTPS or `COOKIE_SECURE` per
 P2, stricter fake-provider guard per P4, purge of expired `refresh_tokens` and
 `oauth_states` in the scheduled job.
 
+Review D5's login limit there: it is per IP, and a whole 42 campus usually
+reaches the internet through one public address — five sign-ins a minute
+for everybody on it. Behind a proxy, every user also shares the proxy's
+address unless `FORWARDED_ALLOW_IPS` is set (`SECURITY.md`).
+
 Done: several real users play at once from the LAN, signed in with 42.
 
 ---
@@ -216,6 +230,7 @@ New, numbered `P` so they cannot collide with `DECISIONS.md`:
 | P7 | Front-end tests with vitest, or none | Stage 6 | vitest |
 | P8 | Source for published puzzles: SudokuWiki (Andrew Stuart) examples, copied exactly and cited | Stage 3 | SudokuWiki |
 | P9 | Delete merged branches | any time | developer's call |
+| P10 | `/login` over its limit answers a JSON `429`, which a browser shows raw; or redirect to `/?login_error=too_many_requests` like the callback | Stage 6 | redirect |
 
 ## Inputs wanted from the developer
 
