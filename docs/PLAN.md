@@ -57,9 +57,9 @@ Necessary — bugs and security holes:
    anyone in. It also hard-codes `localhost:8001` and a plausible real login.
 10. `Secure` cookies are tied to `APP_ENV=production`: over plain HTTP on the
     LAN the browser drops them and nobody can sign in.
-11. Tests build the schema with `create_all`; migrations are never exercised
+11. ✅ Tests build the schema with `create_all`; migrations are never exercised
     in CI (how `LESSONS.md` 12 and 13 got through).
-12. "0 skipped" does not hold: the published-puzzle tests always skip, and
+12. (half done: the database part, Stage 2; the published puzzles are Stage 3) "0 skipped" does not hold: the published-puzzle tests always skip, and
     every database test skips (not fails) without `sudoku_test` — which plain
     `make` deletes.
 
@@ -90,9 +90,10 @@ Desirable:
 ## Not verifiable from here
 
 - 42's OAuth guide (`api.intra.42.fr/apidoc/guides/web_application_flow`)
-  redirects to the intra login. How 42 wants the code exchange encoded, and
-  whether it checks PKCE, are unconfirmed. The exchange follows RFC 6749
-  §4.1.3 (`POST`, `application/x-www-form-urlencoded`) until shown otherwise.
+  redirects to the intra login. Whether 42 checks PKCE is unconfirmed.
+- Confirmed by the developer's first real sign-in (2026-10-21): 42 accepts the
+  form-encoded code exchange (RFC 6749 §4.1.3), and `/v2/me` carries the
+  fields the code reads (`campus_users[].is_primary`, `campus[]`).
 - D18's wrong-verifier test needs the registered application: developer only.
 
 ---
@@ -134,6 +135,9 @@ test; every case in `API.md` tested. Then, by the developer: register the app
 (Q3), a real sign-in, D18's wrong-verifier check.
 
 ### Stage 2 — Test and tooling floor · `chore/test-hardening`
+
+**Done 2026-10-21.** `make check` runs what CI runs. Not done: running the
+migration round trip locally as part of `make check`; it runs in CI.
 
 - `docker-entrypoint-initdb.d` script that creates `sudoku_test`.
 - Database fixture fails instead of skipping, with no opt-out (P5, option A):
@@ -226,7 +230,7 @@ New, numbered `P` so they cannot collide with `DECISIONS.md`:
 | P3 | Serving the built front end: FastAPI `StaticFiles` (one origin, nothing new) or an nginx/Caddy container | Stage 7 | FastAPI |
 | ~~P4~~ | ~~Fake provider: deployments must declare their environment; fake accepts `?as=<login>` to test with several users~~ | Stage 1 | **Answered 2026-10-20: yes to both** — D19 (Stage 1f) |
 | ~~P5~~ | ~~Database tests without `sudoku_test`: always fail, or fail unless an opt-out variable is set~~ | Stage 2 | **Answered 2026-10-20: always fail (A)** — D20 |
-| P6 | Makefile default goal: `all` instead of the destructive `re` | Stage 2 | `all` |
+| ~~P6~~ | ~~Makefile default goal: `all` instead of the destructive `re`~~ | Stage 2 | **Answered 2026-10-21: `all`** |
 | P7 | Front-end tests with vitest, or none | Stage 6 | vitest |
 | P8 | Source for published puzzles: SudokuWiki (Andrew Stuart) examples, copied exactly and cited | Stage 3 | SudokuWiki |
 | P9 | Delete merged branches | any time | developer's call |

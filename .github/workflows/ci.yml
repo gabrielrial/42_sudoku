@@ -43,6 +43,16 @@ jobs:
         run: ruff format --check .
       - name: Types
         run: mypy src
+      # The tests build their schema with create_all, so they cannot tell a
+      # missing or wrong migration (LESSONS.md 12, 13). This can: the migrations
+      # must build the schema the models describe, and come down and up again.
+      # Before the tests, which then replace that schema with their own.
+      - name: Migrations
+        run: |
+          alembic upgrade head
+          alembic check
+          alembic downgrade base
+          alembic upgrade head
       - name: Tests
         run: pytest -q
 

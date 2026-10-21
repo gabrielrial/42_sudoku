@@ -23,8 +23,9 @@ client id and secret (2026-10-21).
 
 What ``/v2/me`` contains is taken from the fields this code reads
 (``campus_users[].is_primary``, ``campus_users[].campus_id``, ``campus[].id``,
-``campus[].name``). 42's API documentation sits behind the intra login and
-could not be checked here.
+``campus[].name``). 42's API documentation sits behind the intra login; the
+developer's first real sign-in (2026-10-21) confirmed those fields and the
+form-encoded code exchange.
 """
 
 import hashlib

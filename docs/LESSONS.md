@@ -185,8 +185,11 @@ come back (`\dt`). Do not merge a branch until it is complete and reviewed.
 along with the rest of the volume. Without it they skip.
 
 **Fix.** `docker compose exec db createdb -U sudoku sudoku_test` after every
-`make` (`README.md`, Checks). Read the skip count every time. Making the
-fixture fail instead of skip is still to do.
+`make` (`README.md`, Checks). Read the skip count every time.
+
+**Since 2026-10-21 (Stage 2):** the fixture fails instead of skipping (D20);
+PostgreSQL creates `sudoku_test` itself on a fresh volume (`db-init/`); and
+plain `make` no longer deletes the volume at all.
 
 ## 15. Rewriting pushed history
 

@@ -2,8 +2,10 @@ FROM node:22-slim
 
 WORKDIR /srv
 
-COPY package.json package-lock.json* ./
-RUN npm install
+# npm ci installs exactly what the lockfile pins, as CI does, and fails if
+# package.json and the lockfile disagree (LESSONS.md 4).
+COPY package.json package-lock.json ./
+RUN npm ci
 
 COPY . .
 

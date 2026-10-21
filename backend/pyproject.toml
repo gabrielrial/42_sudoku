@@ -56,5 +56,5 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = "-q --strict-markers"
 markers = [
-    "db: needs a live PostgreSQL (skipped when DATABASE_URL is unset)",
+    "db: needs a live PostgreSQL *_test database; fails without one (D20)",
 ]

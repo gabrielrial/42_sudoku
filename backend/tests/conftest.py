@@ -43,7 +43,15 @@ def client():
 # They use DATABASE_URL, which must name a database ending in "_test": the
 # schema there is dropped and recreated on every run, so pointing it at the
 # development database would wipe it. Without a reachable *_test database
-# these tests are skipped, not failed.
+# these tests fail, never skip (DECISIONS.md D20): a skipped database test
+# looks green and proves nothing. ``pytest tests/sudoku`` needs no database.
+
+_HOW_TO_FIX = (
+    "Run the tests against the test database: `make test`, or "
+    "`docker compose exec api sh -c 'DATABASE_URL=\"${DATABASE_URL%/*}/sudoku_test\" pytest'`. "
+    "If sudoku_test does not exist: "
+    "`docker compose exec db sh -c 'createdb -U \"$POSTGRES_USER\" sudoku_test'`."
+)
 
 
 @pytest.fixture(scope="session")
@@ -58,12 +66,15 @@ def db_engine() -> Iterator[Engine]:
     engine = create_engine(get_settings().database_url)
     name = engine.url.database or ""
     if not name.endswith("_test"):
-        pytest.skip(f"DATABASE_URL names {name!r}; database tests need a *_test database")
+        pytest.fail(
+            f"DATABASE_URL names {name!r}; database tests need a *_test database. {_HOW_TO_FIX}",
+            pytrace=False,
+        )
     try:
         with engine.connect():
             pass
     except OperationalError:
-        pytest.skip(f"PostgreSQL database {name!r} is not reachable")
+        pytest.fail(f"PostgreSQL database {name!r} is not reachable. {_HOW_TO_FIX}", pytrace=False)
 
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
