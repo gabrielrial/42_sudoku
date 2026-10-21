@@ -210,6 +210,54 @@ To be checked with the real application in Phase 4: exchange a code with a
 **wrong** verifier. If 42 accepts it, PKCE protects nothing against 42, and
 `SECURITY.md` must say so.
 
+### D19 — The environment is always declared; the fake provider can play anyone
+Decided 2026-10-20 (`PLAN.md` P4).
+
+`APP_ENV` has no default, neither in `Settings` nor in the compose file. A
+process that does not say which environment it is in refuses to start. The
+fake identity provider is refused in `production` (unchanged); what this adds
+is that forgetting `APP_ENV` on a LAN or public machine can no longer leave
+the fake provider quietly letting anyone in.
+
+In fake mode, `GET /api/auth/login?as=<login>` signs in as that made-up user,
+so two people — or two browsers — can be tested against each other by hand
+(authorisation between users, Phase 5). The login is validated; fake users
+never share an `intra_id` with a real 42 account. The real provider ignores
+`as`. The automated tests do not need it: they create their users directly.
+
+### D20 — Database tests fail, never skip, without their database
+Decided 2026-10-20 (`PLAN.md` P5, option A).
+
+A test that needs PostgreSQL fails when `DATABASE_URL` is unreachable or does
+not name a `*_test` database. There is no opt-out variable. A skipped
+database test looks green and proves nothing (`LESSONS.md` 14). Running the
+engine alone needs no database: `pytest tests/sudoku` never touches the
+fixture.
+
+### D21 — A login 42 has reassigned goes to its new holder
+Decided 2026-10-21. Replaces `DATA_MODEL.md`'s earlier rule (keep the stored
+login and log the collision), which said nothing about a newcomer and turned
+that case into a `500`.
+
+42 is the authority on who holds a login today. When the login of the person
+signing in is held here by another account, that account is renamed to what 42
+calls it now, and the person signing in takes the login. The `UNIQUE` on
+`users.login` stays, so a leaderboard never shows two people under one name.
+
+Finding out the other account's login is one call, `GET /v2/users/:id`, with
+an application token (client credentials). The developer checked on 2026-10-20
+that 42 serves that endpoint to an application token, and on 2026-10-21 that
+42 issues that token for a form-encoded `POST /oauth/token` with
+`grant_type=client_credentials`, `client_id` and `client_secret` — the
+request the server sends. The token is fetched for
+that call and discarded, as D11 asks of tokens, and the call happens only on a
+collision, so the normal sign-in still makes exactly the two calls of D11.
+
+Fallback, so that one person's stale row never locks another out:
+`former-<intra_id>` when 42 fails or does not know the account, or when the
+login it gives is taken here too. Chains of renames are not followed. The stale
+holder's next sign-in replaces the placeholder with the truth.
+
 ### Q1 — The activity rule behind D6 (answered)
 
 | Parameter | Value |

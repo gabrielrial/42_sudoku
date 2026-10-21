@@ -28,28 +28,31 @@ these are reviewed line by line by the developer before they are accepted
 - Checks on the branch: ruff fails (1, from `68325ed`), format and mypy pass,
   pytest 227 passed / 2 skipped.
 
+Update 2026-10-21: Stage 1's code is done on `feature/oauth-completion`
+(1a–1f); items 1–9 below are fixed there. Pytest: 312 passed, 2 skipped.
+
 ## Known problems, by impact
 
 Necessary — bugs and security holes:
 
-1. Commit `68325ed` ("fix: variable name") in `identity_provider.py`:
+1. ✅ Commit `68325ed` ("fix: variable name") in `identity_provider.py`:
    `campus_info["comapus"]` (`KeyError` on every real login) and an unused
    import (ruff F401, so CI is red). The previous `campus_info["id"]` was
    correct. Fixed in Stage 1a.
-2. PKCE is not actually used: the challenge is never sent to 42, and the
+2. ✅ PKCE is not actually used: the challenge is never sent to 42, and the
    verifier `finish_login` returns is thrown away instead of being sent in the
    code exchange (D18 decided, not implemented).
-3. No `state` cookie: login CSRF (`LESSONS.md` E) is open.
-4. A failed callback leaves its `state` reusable: the row deletion is rolled
+3. ✅ No `state` cookie: login CSRF (`LESSONS.md` E) is open.
+4. ✅ A failed callback leaves its `state` reusable: the row deletion is rolled
    back when 42 fails, because nothing commits it before the provider call.
-5. Callback failures are a JSON `401` or a `500` (no httpx timeout, uncaught
+5. ✅ Callback failures are a JSON `401` or a `500` (no httpx timeout, uncaught
    `HTTPStatusError`/`ValueError`/`KeyError`); `API.md` requires a redirect to
    the front end with an error code. `?error=access_denied` is not handled.
-6. The authorize URL is concatenated, not URL-encoded.
-7. A returning user's `login` and campus are not refreshed; the `login` unique
+6. ✅ The authorize URL is concatenated, not URL-encoded.
+7. ✅ A returning user's `login` and campus are not refreshed; the `login` unique
    collision of `DATA_MODEL.md` is not handled.
-8. The login rate limit is not attached to `/login`.
-9. The fake identity provider is only refused in `production`, and compose
+8. ✅ The login rate limit is not attached to `/login`.
+9. ✅ The fake identity provider is only refused in `production`, and compose
    enables it by default: a LAN deployment with `APP_ENV=development` lets
    anyone in. It also hard-codes `localhost:8001` and a plausible real login.
 10. `Secure` cookies are tied to `APP_ENV=production`: over plain HTTP on the
@@ -96,12 +99,11 @@ Desirable:
 
 ## Before Stage 1 (developer)
 
-- [ ] Decide what to do with `68325ed`: fix it in Stage 1a (default), or revert
-  it now so CI is green before Stage 1 starts.
-- [ ] Merge `main` into `feature/identity-provider` (brings the current `docs/`).
-- [x] Answer P4 and P5 below (2026-10-20). After the merge, record them in
-  `DECISIONS.md` as D19 and D20 — not before: this branch's `DECISIONS.md` is
-  the stale one, and editing it now would conflict with `main`.
+- [x] `68325ed`: fixed in Stage 1a. It reached `main` with the merge of
+  `feature/identity-provider` (2026-10-20), so `main`'s CI is red until 1a lands.
+- [x] `feature/identity-provider` merged into `main` (2026-10-20); Stage 1
+  continues on `feature/oauth-completion`.
+- [x] P4 and P5 answered (2026-10-20), recorded as D19 and D20.
 
 ## Stages
 
@@ -110,14 +112,20 @@ changed, why, how to test it, a proposed commit message; then wait for the OK.
 Checks before "done": ruff, ruff format, mypy, pytest with 0 failures and the
 skip count read (0 once Stage 3 lands).
 
-### Stage 1 — Finish the 42 sign-in 🔑🔐 · `feature/identity-provider`
+### Stage 1 — Finish the 42 sign-in 🔑🔐 · `feature/oauth-completion`
+
+**Code done 2026-10-21 (1a–1f).** Left for the developer: register the
+app, a real sign-in, the wrong-verifier check. Two changes to the plan on
+the way: 1d asks 42 for a stale holder's current login instead of keeping
+the stored one (D21); the fake provider redirects to the callback by path
+rather than a URL taken from the settings.
 
 | Commit | Change | Tests |
 |---|---|---|
 | 1a | Provider: `campus_id` from `campus_info["id"]` again (undoes `68325ed`); authorize URL built with `urlencode`, carrying the S256 `code_challenge`; code exchange form-encoded with `code_verifier`; httpx timeouts; one typed `IdentityProviderError`; fake provider's URL derived from settings and an obviously fake login; `get_settings()` everywhere | `httpx.MockTransport` (no new dependency): exact request shapes, `/v2/me` parsing, no primary campus, 42 down or 4xx |
 | 1b | `state` cookie at `/login` (`Path=/api/auth/callback`, 10 min, HttpOnly, Lax), compared with `secrets.compare_digest`; `state` deletion committed before calling 42 | missing or different cookie rejected; replay after a failed callback rejected |
 | 1c | Every failure → `302` to `FRONTEND_ORIGIN/?login_error=<code>`; `error=access_denied` handled; user and token in one commit | one test per error code; no detail leaks |
-| 1d | Upsert refreshes a returning user; `login` collision logged, stored value kept | returning user with a new login or campus |
+| 1d | Upsert refreshes a returning user; a login 42 reassigned goes to its new holder, the stale holder renamed from `GET /v2/users/:id` or to `former-<intra_id>` (D21) | returning user with a new login or campus; takeover by a newcomer and by a returning user; every fallback; no extra call to 42 without a collision |
 | 1e | Rate limit on `/login` | `429` on the real route |
 | 1f | P4: `APP_ENV` required, with no default in `Settings` or compose, so a deployment that forgets it does not start; fake provider honours `?as=<login>` (validated format, fake users kept apart from real `intra_id`s), ignored outside fake mode | missing `APP_ENV` refuses to start; fake refused in production; `?as=` gives two distinct users; `?as=` ignored by the real provider |
 
@@ -194,6 +202,11 @@ front end served per P3, `FORWARDED_ALLOW_IPS`, HTTPS or `COOKIE_SECURE` per
 P2, stricter fake-provider guard per P4, purge of expired `refresh_tokens` and
 `oauth_states` in the scheduled job.
 
+Review D5's login limit there: it is per IP, and a whole 42 campus usually
+reaches the internet through one public address — five sign-ins a minute
+for everybody on it. Behind a proxy, every user also shares the proxy's
+address unless `FORWARDED_ALLOW_IPS` is set (`SECURITY.md`).
+
 Done: several real users play at once from the LAN, signed in with 42.
 
 ---
@@ -211,12 +224,13 @@ New, numbered `P` so they cannot collide with `DECISIONS.md`:
 | P1 | How the generation job runs: compose service looping, host cron calling a CLI, or a thread at API start-up | Stage 4 | compose service + idempotent CLI |
 | P2 | Cookies on the LAN: HTTPS through a proxy (Caddy, mkcert), or a `COOKIE_SECURE` setting independent of `APP_ENV` | Stage 7 | — |
 | P3 | Serving the built front end: FastAPI `StaticFiles` (one origin, nothing new) or an nginx/Caddy container | Stage 7 | FastAPI |
-| ~~P4~~ | ~~Fake provider: deployments must declare their environment; fake accepts `?as=<login>` to test with several users~~ | Stage 1 | **Answered 2026-10-20: yes to both** (Stage 1f) |
-| ~~P5~~ | ~~Database tests without `sudoku_test`: always fail, or fail unless an opt-out variable is set~~ | Stage 2 | **Answered 2026-10-20: always fail (A)** |
+| ~~P4~~ | ~~Fake provider: deployments must declare their environment; fake accepts `?as=<login>` to test with several users~~ | Stage 1 | **Answered 2026-10-20: yes to both** — D19 (Stage 1f) |
+| ~~P5~~ | ~~Database tests without `sudoku_test`: always fail, or fail unless an opt-out variable is set~~ | Stage 2 | **Answered 2026-10-20: always fail (A)** — D20 |
 | P6 | Makefile default goal: `all` instead of the destructive `re` | Stage 2 | `all` |
 | P7 | Front-end tests with vitest, or none | Stage 6 | vitest |
 | P8 | Source for published puzzles: SudokuWiki (Andrew Stuart) examples, copied exactly and cited | Stage 3 | SudokuWiki |
 | P9 | Delete merged branches | any time | developer's call |
+| P10 | `/login` over its limit answers a JSON `429`, which a browser shows raw; or redirect to `/?login_error=too_many_requests` like the callback | Stage 6 | redirect |
 
 ## Inputs wanted from the developer
 

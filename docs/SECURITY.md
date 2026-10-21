@@ -115,6 +115,8 @@ Notes beyond the numbers:
 - Do not store the 42 access token unless a concrete need appears
   (`DECISIONS.md` D11). A third-party token in the database is a liability with
   no MVP benefit.
+- The application token used to resolve a login collision (`DECISIONS.md` D21)
+  is fetched for that one call and never stored either.
 - Never log tokens, secrets, cookies, or authorization codes.
 - GDPR applies — real people's identities, in the EU. A privacy note and a
   deletion path are needed before Stage 3 (`DECISIONS.md` Q8).
