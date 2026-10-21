@@ -16,6 +16,7 @@ from app.api.cookies import (
     set_oauth_state_cookie,
 )
 from app.api.dependencies import ProviderDep
+from app.api.rate_limits import limit_login_attempts
 from app.config import get_settings
 from app.database.conf.dependencies import get_db
 from app.database.models.users import User
@@ -96,7 +97,7 @@ def callback(
     return redirect
 
 
-@router.get("/login")
+@router.get("/login", dependencies=[Depends(limit_login_attempts)])
 def login(db: Annotated[Session, Depends(get_db)], provider: ProviderDep) -> RedirectResponse:
     state, code_challenge = start_login(db)
     db.commit()
