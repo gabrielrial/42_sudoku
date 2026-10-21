@@ -336,3 +336,40 @@ def test_an_error_from_the_url_cannot_forge_log_lines(
 
     assert len(caplog.records) == 1
     assert "\n" not in caplog.records[0].getMessage()
+
+
+# --- a returning user, and a login 42 has given to someone else ------------------------
+
+
+def test_a_returning_user_is_refreshed_from_42(
+    db: Session, db_client: TestClient, fortytwo: FakeFortyTwo
+) -> None:
+    db.add(User(intra_id=ME["id"], login="ana-old", campus_id=21, campus_name="Paris"))
+    db.commit()
+
+    _callback(db_client, _login(db_client))
+
+    db.expire_all()
+    user = db.scalar(select(User).where(User.intra_id == ME["id"]))
+    assert user is not None
+    assert (user.login, user.campus_name) == ("ana", "Berlin")
+
+
+def test_a_login_42_reassigned_moves_to_the_newcomer(
+    db: Session, db_client: TestClient, fortytwo: FakeFortyTwo
+) -> None:
+    # 111 signed in as "ana" long ago; 42 has since renamed them "ana-m" and
+    # given "ana" to the account now signing in.
+    db.add(User(intra_id=111, login="ana", campus_id=21, campus_name="Paris"))
+    db.commit()
+    fortytwo.users = lambda _: httpx.Response(200, json={"id": 111, "login": "ana-m"})
+
+    response = _callback(db_client, _login(db_client))
+
+    assert response.status_code == 302
+    assert ACCESS_COOKIE in set_cookies(response)
+    db.expire_all()
+    logins = dict(db.execute(select(User.intra_id, User.login)).all())
+    assert logins[ME["id"]] == "ana"
+    assert logins[111] == "ana-m"
+    assert [str(r.url) for r in fortytwo.requests][-1].endswith("/v2/users/111")

@@ -19,6 +19,7 @@ from app.services.identity_provider import (
     AUTHORIZE_URL,
     ME_URL,
     TOKEN_URL,
+    USERS_URL,
     FakeIdentityProvider,
     Identity,
     IdentityProviderError,
@@ -56,12 +57,14 @@ Handler = Callable[[httpx.Request], httpx.Response]
 
 
 class FakeFortyTwo:
-    """Plays 42's token and ``/v2/me`` endpoints, and keeps what it was sent."""
+    """Plays 42's token, ``/v2/me`` and ``/v2/users/:id`` endpoints, and keeps
+    what it was sent. Knows no other account until a test sets ``users``."""
 
     def __init__(self, me: object = ME) -> None:
         self.requests: list[httpx.Request] = []
         self.token: Handler = lambda _: httpx.Response(200, json={"access_token": ACCESS_TOKEN})
         self.me: Handler = lambda _: httpx.Response(200, json=me)
+        self.users: Handler = lambda _: httpx.Response(404)
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -69,6 +72,8 @@ class FakeFortyTwo:
             return self.token(request)
         if request.url == ME_URL:
             return self.me(request)
+        if str(request.url).startswith(f"{USERS_URL}/"):
+            return self.users(request)
         return httpx.Response(404)
 
     def provider(self) -> RealIdentityProvider:
@@ -243,6 +248,70 @@ def test_a_refused_code_does_not_reach_v2_me() -> None:
     assert [r.url for r in fake.requests] == [TOKEN_URL]
 
 
+# --- another account's current login (login collisions, DATA_MODEL.md) ------
+
+
+def _knows(fake: FakeFortyTwo, login: str) -> None:
+    fake.users = lambda _: httpx.Response(200, json={"id": 111, "login": login, "email": "x@y"})
+
+
+def test_current_login_asks_42_with_an_application_token() -> None:
+    fake = FakeFortyTwo()
+    _knows(fake, "ana-m")
+
+    assert fake.provider().current_login(111) == "ana-m"
+
+    grant, lookup = fake.requests
+    assert grant.method == "POST"
+    assert grant.url == TOKEN_URL
+    assert grant.headers["content-type"] == "application/x-www-form-urlencoded"
+    assert {k: v[0] for k, v in parse_qs(grant.content.decode()).items()} == {
+        "grant_type": "client_credentials",
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+    }  # no user's code or verifier: this token is the application's own
+    assert lookup.method == "GET"
+    assert lookup.url == f"{USERS_URL}/111"
+    assert lookup.headers["authorization"] == f"Bearer {ACCESS_TOKEN}"
+
+
+def test_current_login_of_an_account_42_does_not_know_is_none() -> None:
+    assert FakeFortyTwo().provider().current_login(111) is None  # 404
+
+
+def test_current_login_has_timeouts() -> None:
+    fake = FakeFortyTwo()
+    _knows(fake, "ana-m")
+
+    fake.provider().current_login(111)
+
+    for request in fake.requests:
+        assert all(v is not None for v in request.extensions["timeout"].values())
+
+
+LOOKUP_FAILURES: dict[str, Callable[[FakeFortyTwo], None]] = {
+    "no application token": lambda f: setattr(f, "token", lambda _: httpx.Response(401)),
+    "42 down": lambda f: setattr(f, "users", lambda _: httpx.Response(503)),
+    "not JSON": lambda f: setattr(f, "users", lambda _: httpx.Response(200, text="<html>")),
+    "no login": lambda f: setattr(f, "users", lambda _: httpx.Response(200, json={"id": 111})),
+    "too slow": lambda f: setattr(f, "users", _raises(httpx.ReadTimeout("timed out"))),
+}
+
+
+@pytest.mark.parametrize("break_42", LOOKUP_FAILURES.values(), ids=LOOKUP_FAILURES.keys())
+def test_every_failed_lookup_is_an_identity_provider_error(
+    break_42: Callable[[FakeFortyTwo], None],
+) -> None:
+    fake = FakeFortyTwo()
+    break_42(fake)
+
+    with pytest.raises(IdentityProviderError) as exc:
+        fake.provider().current_login(111)
+
+    for secret in (CLIENT_SECRET, ACCESS_TOKEN):
+        assert secret not in str(exc.value)
+
+
 # --- the fake provider ----------------------------------------------------------------
 
 
@@ -258,3 +327,7 @@ def test_the_fake_identity_cannot_be_a_real_42_account() -> None:
     identity = FakeIdentityProvider().identity_from_code("anything", VERIFIER)
 
     assert identity.intra_id < 0  # 42's ids are positive
+
+
+def test_the_fake_knows_no_other_account() -> None:
+    assert FakeIdentityProvider().current_login(111) is None

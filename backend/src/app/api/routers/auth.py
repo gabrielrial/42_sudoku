@@ -32,6 +32,7 @@ from app.services.refresh_token import (
     revoke_refresh_token,
     rotate_refresh_token,
 )
+from app.services.users import upsert_user
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -162,16 +163,7 @@ def _sign_in(
     except IdentityProviderError as exc:
         raise _LoginFailed(PROVIDER_ERROR, str(exc)) from None
 
-    user = db.query(User).filter(User.intra_id == identity.intra_id).first()
-    if not user:
-        user = User(
-            intra_id=identity.intra_id,
-            login=identity.login,
-            campus_id=identity.campus_id,
-            campus_name=identity.campus_name,
-        )
-        db.add(user)
-    db.flush()  # a new user gets its id here, for the refresh token
+    user = upsert_user(db, identity, provider)
     refresh_token = issue_refresh_token(db, user.id)
     db.commit()  # the user and their session together, or neither
     return create_access_token(user), refresh_token

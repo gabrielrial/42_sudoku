@@ -40,10 +40,17 @@ Nothing else from `/v2/me` is stored (`SECURITY.md`). No access token (D11), no
 email, no avatar URL.
 
 Login is matched on `intra_id`, never on `login`: 42 logins can in principle
-change. The `login` column is refreshed on every sign-in. Its unique constraint
-can therefore collide in the pathological case where one user takes a login
-another has released — if that happens, keep the stored value and log it rather
-than failing the sign-in.
+change. `login`, `campus_id` and `campus_name` are refreshed on every sign-in.
+
+The unique constraint on `login` can therefore collide: 42 renames someone and
+gives their old login to somebody else, and the server only finds out when the
+newcomer signs in. 42 is the authority (`DECISIONS.md` D21): the person signing
+in takes the login, and the stale holder is renamed first to their current
+login at 42 (`GET /v2/users/:id`). When that cannot be used — 42 fails or does
+not know the account, or the login it gives is taken here as well — the stale
+holder becomes `former-<intra_id>` until their own next sign-in sets it right.
+The takeover is logged by `intra_id`. Nobody is refused a sign-in because of
+somebody else's stale row.
 
 ## `puzzles`
 

@@ -13,6 +13,12 @@ PKCE (``DECISIONS.md`` D18): the authorize URL carries the S256 challenge, the
 code exchange carries the verifier. Both are made by ``oauth_pkce.py``; this
 module only puts them where 42 expects them.
 
+When two accounts claim one login (``DATA_MODEL.md``, ``users``), the server
+asks 42 for the other account's current login with ``GET /v2/users/:id``,
+using an application token (client credentials, RFC 6749 section 4.4) that is
+fetched for that one call and never stored (D11). Developer-checked on
+2026-10-20 that 42 serves that endpoint to an application token.
+
 What ``/v2/me`` contains is taken from the fields this code reads
 (``campus_users[].is_primary``, ``campus_users[].campus_id``, ``campus[].id``,
 ``campus[].name``). 42's API documentation sits behind the intra login and
@@ -29,6 +35,7 @@ from pydantic import BaseModel, ValidationError
 AUTHORIZE_URL = "https://api.intra.42.fr/oauth/authorize"
 TOKEN_URL = "https://api.intra.42.fr/oauth/token"
 ME_URL = "https://api.intra.42.fr/v2/me"
+USERS_URL = "https://api.intra.42.fr/v2/users"
 
 #: Seconds. A login waits on 42 twice; neither wait may hang a worker forever.
 TIMEOUT = httpx.Timeout(10.0, connect=5.0)
@@ -68,6 +75,13 @@ class IdentityProvider(Protocol):
         """
         ...
 
+    def current_login(self, intra_id: int) -> str | None:
+        """The login 42 gives that account today; ``None`` if 42 does not know it.
+
+        Raises ``IdentityProviderError``.
+        """
+        ...
+
 
 class FakeIdentityProvider:
     """Signs everybody in as the same made-up account, without leaving the server.
@@ -85,6 +99,9 @@ class FakeIdentityProvider:
     def identity_from_code(self, code: str, code_verifier: str) -> Identity:
         return self.IDENTITY
 
+    def current_login(self, intra_id: int) -> str | None:
+        return None  # the fake has no directory of accounts
+
 
 # --- the shapes 42 answers with; anything not listed here is ignored ---------
 
@@ -101,6 +118,10 @@ class _CampusUser(BaseModel):
 class _Campus(BaseModel):
     id: int
     name: str
+
+
+class _User(BaseModel):
+    login: str
 
 
 class _Me(BaseModel):
@@ -154,6 +175,35 @@ class RealIdentityProvider:
         except ValidationError:
             raise IdentityProviderError("42 answered in an unexpected shape") from None
         return _identity(me)
+
+    def current_login(self, intra_id: int) -> str | None:
+        try:
+            with httpx.Client(timeout=TIMEOUT, transport=self._transport) as client:
+                token = self._application_token(client)
+                response = client.get(
+                    f"{USERS_URL}/{intra_id}", headers={"Authorization": f"Bearer {token}"}
+                )
+                if response.status_code == httpx.codes.NOT_FOUND:
+                    return None
+                response.raise_for_status()
+                return _User.model_validate_json(response.content).login
+        except httpx.HTTPError as exc:
+            raise IdentityProviderError(f"42 request failed: {type(exc).__name__}") from None
+        except ValidationError:
+            raise IdentityProviderError("42 answered in an unexpected shape") from None
+
+    def _application_token(self, client: httpx.Client) -> str:
+        """A token for the application itself, not for any user (RFC 6749 section 4.4)."""
+        response = client.post(
+            TOKEN_URL,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": self.client_id,
+                "client_secret": self.client_secret,
+            },
+        )
+        response.raise_for_status()
+        return _Token.model_validate_json(response.content).access_token
 
     def _exchange(self, client: httpx.Client, code: str, code_verifier: str) -> str:
         """The code exchange. Form-encoded, as RFC 6749 section 4.1.3 requires."""

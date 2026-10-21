@@ -234,6 +234,27 @@ database test looks green and proves nothing (`LESSONS.md` 14). Running the
 engine alone needs no database: `pytest tests/sudoku` never touches the
 fixture.
 
+### D21 — A login 42 has reassigned goes to its new holder
+Decided 2026-10-21. Replaces `DATA_MODEL.md`'s earlier rule (keep the stored
+login and log the collision), which said nothing about a newcomer and turned
+that case into a `500`.
+
+42 is the authority on who holds a login today. When the login of the person
+signing in is held here by another account, that account is renamed to what 42
+calls it now, and the person signing in takes the login. The `UNIQUE` on
+`users.login` stays, so a leaderboard never shows two people under one name.
+
+Finding out the other account's login is one call, `GET /v2/users/:id`, with
+an application token (client credentials). The developer checked on 2026-10-20
+that 42 serves that endpoint to an application token. The token is fetched for
+that call and discarded, as D11 asks of tokens, and the call happens only on a
+collision, so the normal sign-in still makes exactly the two calls of D11.
+
+Fallback, so that one person's stale row never locks another out:
+`former-<intra_id>` when 42 fails or does not know the account, or when the
+login it gives is taken here too. Chains of renames are not followed. The stale
+holder's next sign-in replaces the placeholder with the truth.
+
 ### Q1 — The activity rule behind D6 (answered)
 
 | Parameter | Value |
