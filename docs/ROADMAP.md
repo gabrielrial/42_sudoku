@@ -70,9 +70,9 @@ puzzles, roughly 41% Easy, 17% Medium, 0.5% Hard and 41% discarded as beyond
 tier 3. Easy and Medium come in under a second, Hard in about ten seconds on
 average — acceptable offline, so no digging bias yet.
 
-Still open from `DIFFICULTY.md`'s verification list: the published-puzzle
-checks. Written, but skipped until puzzles copied exactly from a cited source
-are added to `PUBLISHED` in `tests/sudoku/test_verification.py`.
+The published-puzzle checks of `DIFFICULTY.md` landed on 2026-10-22 (Stage 3 of
+`PLAN.md`): thirteen references rated by SudokuWiki's solver, in agreement with
+this grader on every tier and, within tier 3, on every technique used.
 
 ## Phase 3 — Persistence and daily puzzles
 

@@ -257,3 +257,12 @@ code: the victim ends up signed in to the attacker's account. PKCE does not
 help, because code and verifier both belong to the attacker. Hence the
 short-lived `state` cookie that ties the callback to the browser that started
 the login (`DATA_MODEL.md`, `oauth_states`).
+
+## F. A label next to a puzzle is not a rating
+
+The first plan for `DIFFICULTY.md`'s published-puzzle check took SudokuWiki's
+"X-Wing exemplars" at their word: "require the X-Wing strategy at some point
+but are otherwise trivial". The grader discarded all ten. Its own solver, asked
+for the solve path, needs a Chute Remote Pair for the first one — a technique
+beyond tier 3 — so the grader was right and the label was not. The reference is
+now what an independent solver actually did, recorded with its version.

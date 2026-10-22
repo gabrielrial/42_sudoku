@@ -59,7 +59,7 @@ Necessary — bugs and security holes:
     LAN the browser drops them and nobody can sign in.
 11. ✅ Tests build the schema with `create_all`; migrations are never exercised
     in CI (how `LESSONS.md` 12 and 13 got through).
-12. (half done: the database part, Stage 2; the published puzzles are Stage 3) "0 skipped" does not hold: the published-puzzle tests always skip, and
+12. ✅ "0 skipped" does not hold: the published-puzzle tests always skip, and
     every database test skips (not fails) without `sudoku_test` — which plain
     `make` deletes.
 
@@ -153,6 +153,11 @@ models fails CI.
 
 ### Stage 3 — Published-puzzle verification 🧩 · `test/published-puzzles`
 
+**Done 2026-10-22.** Changed on the way: the reference is SudokuWiki's solve
+path, not the "exemplar" labels, which its own solver contradicts; the two
+Hard references are generated puzzles rated by that solver, since no published
+one fits. Recorded in `DIFFICULTY.md`. pytest: 0 skipped.
+
 Puzzles copied exactly from a cited source (per P8), each checked for a unique
 solution before it is added. Done: pytest reports 0 skipped, and the grader
 keeps the source's relative order. If it does not, that is a finding to
@@ -232,7 +237,7 @@ New, numbered `P` so they cannot collide with `DECISIONS.md`:
 | ~~P5~~ | ~~Database tests without `sudoku_test`: always fail, or fail unless an opt-out variable is set~~ | Stage 2 | **Answered 2026-10-20: always fail (A)** — D20 |
 | ~~P6~~ | ~~Makefile default goal: `all` instead of the destructive `re`~~ | Stage 2 | **Answered 2026-10-21: `all`** |
 | P7 | Front-end tests with vitest, or none | Stage 6 | vitest |
-| P8 | Source for published puzzles: SudokuWiki (Andrew Stuart) examples, copied exactly and cited | Stage 3 | SudokuWiki |
+| ~~P8~~ | ~~Source for published puzzles~~ | Stage 3 | **Answered 2026-10-22: SudokuWiki's solver** (`DIFFICULTY.md`, verification) |
 | P9 | Delete merged branches | any time | developer's call |
 | P10 | `/login` over its limit answers a JSON `429`, which a browser shows raw; or redirect to `/?login_error=too_many_requests` like the callback | Stage 6 | redirect |
 
