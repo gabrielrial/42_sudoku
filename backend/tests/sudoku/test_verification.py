@@ -5,6 +5,7 @@ notices for weeks. These tests are how it fails loudly instead.
 """
 
 import random
+from dataclasses import dataclass
 from functools import cache
 
 import pytest
@@ -116,38 +117,213 @@ def test_the_grader_gives_the_same_result_every_time():
         assert grade(puzzle.givens) == first
 
 
-# --- Published puzzles: pending -----------------------------------------------
+# --- An outside opinion: SudokuWiki's solver --------------------------------------
+# A grader checked only against puzzles it graded itself agrees with itself,
+# broken or not. These puzzles carry a second opinion: the solve path of Andrew
+# Stuart's solver at https://www.sudokuwiki.org/sudoku.htm (version 2.71.2,
+# read on 2026-10-22), an implementation independent of this one. Its ladder
+# begins like ours: singles; naked and hidden pairs; pointing pairs; box/line
+# reduction; naked and hidden triples; then, among its "tough" strategies,
+# X-Wing. Everything else it uses is beyond tier 3 here.
+#
+# ``used`` is what that solve path listed, in SudokuWiki's own words. The grids
+# are copied by program from the solver's page (``?bd=`` and its own
+# ``makePuzzleString``), never retyped: one wrong digit is another puzzle.
+# No published SudokuWiki puzzle stays within tier 3 and needs a triple or an
+# X-Wing, so the two Hard references are puzzles from this generator (seeds 5
+# and 4), rated by SudokuWiki's solver.
 
-PUBLISHED: list[tuple[str, str, str]] = []
-"""Puzzles with a published rating, as ``(givens, expected_hardest, source)``,
-ordered from easiest to hardest by the source.
+SUDOKUWIKI_TIER = {
+    "Naked Singles": Tier.EASY,
+    "Hidden Singles": Tier.EASY,
+    "Naked Pair": Tier.MEDIUM,
+    "Hidden Pair": Tier.MEDIUM,
+    "Pointing Pairs": Tier.MEDIUM,
+    "Line/Unit Reduction": Tier.MEDIUM,
+    "Naked Triple": Tier.HARD,
+    "Hidden Triple": Tier.HARD,
+    "X-Wing": Tier.HARD,
+}
+"""SudokuWiki's names for the techniques of our ladder. Any other means beyond tier 3."""
 
-Pending: the puzzles must be copied exactly from a cited source (a single wrong
-digit is a different puzzle), and none has been added yet. ``DIFFICULTY.md``
-requires two checks on them, both written below and skipped until the list is
-filled:
-
-- a puzzle known to need one specific technique grades as that technique's tier;
-- the grader ranks the list in the same relative order as the source (by tier:
-  exact labels need not agree, but the order must).
-"""
-
-
-@pytest.mark.skipif(not PUBLISHED, reason="no published puzzles added yet")
-def test_published_puzzles_grade_as_their_known_technique():
-    for givens, expected, source in PUBLISHED:
-        g = grade(givens)
-        assert g is not None, f"discarded: {source}"
-        assert g.tier is TIER_OF[expected], source
+OUR_NAME = {
+    "Naked Singles": "naked_single",
+    "Hidden Singles": "hidden_single",
+    "Naked Pair": "naked_pair",
+    "Hidden Pair": "hidden_pair",
+    "Pointing Pairs": "pointing_pair",
+    "Line/Unit Reduction": "box_line",
+    "Naked Triple": "naked_triple",
+    "Hidden Triple": "hidden_triple",
+    "X-Wing": "x_wing",
+}
 
 
-@pytest.mark.skipif(not PUBLISHED, reason="no published puzzles added yet")
-def test_published_puzzles_keep_their_relative_order():
-    # Compared by tier: ranking within a tier is a non-goal of DIFFICULTY.md.
-    order = list(Tier)
-    ranks = []
-    for givens, _, source in PUBLISHED:
-        g = grade(givens)
-        assert g is not None, f"discarded: {source}"
-        ranks.append(order.index(g.tier))
-    assert ranks == sorted(ranks)
+@dataclass(frozen=True)
+class Reference:
+    name: str
+    """Its name in SudokuWiki's "Pick an example" list, or where else it came from."""
+    givens: str
+    used: tuple[str, ...]
+    """The techniques SudokuWiki's solve path used, in its words."""
+
+    @property
+    def tier(self) -> Tier | None:
+        """The tier SudokuWiki's solve path implies; ``None``: beyond tier 3, discard."""
+        if any(technique not in SUDOKUWIKI_TIER for technique in self.used):
+            return None
+        return max((SUDOKUWIKI_TIER[t] for t in self.used), key=list(Tier).index)
+
+
+SUDOKUWIKI = [
+    Reference(
+        "Easiest Sudoku",
+        "300967001040302080020000070070000090000873000500010003004705100905000207800621004",
+        ("Naked Singles",),
+    ),
+    Reference(
+        "Gentle",
+        "000004028406000005100030600000301000087000140000709000002010003900000507670400000",
+        ("Hidden Singles", "Naked Singles"),
+    ),
+    Reference(
+        "Moderate",
+        "030007000067100350019000000500000007070203010900000008000000680086002970000700040",
+        ("Hidden Singles", "Naked Singles", "Naked Pair", "Hidden Pair"),
+    ),
+    Reference(
+        "Pointing Pairs",
+        "000001426000000000020905000701090004800010005300060208000108060000000000438600000",
+        ("Naked Singles", "Hidden Singles", "Pointing Pairs"),
+    ),
+    Reference(
+        "Line Box Reductions",
+        "000004000200030000060900400040301500006000900013207080081006040000070009000400000",
+        ("Naked Singles", "Hidden Singles", "Line/Unit Reduction"),
+    ),
+    Reference(
+        "this generator, Hard, seed 5",
+        "000090001084000000092040000007203000600514002000000300000000960000000700001078400",
+        ("Naked Singles", "Hidden Singles", "Pointing Pairs", "Naked Triple"),
+    ),
+    Reference(
+        "this generator, Hard, seed 4",
+        "009200130200009080000500000020000368500000010004030000900001056600700000005400070",
+        (
+            "Naked Pair",
+            "Hidden Singles",
+            "Hidden Pair",
+            "Pointing Pairs",
+            "X-Wing",
+            "Naked Singles",
+        ),
+    ),
+    # Beyond tier 3: SudokuWiki needed a technique our ladder does not have.
+    Reference(
+        "Tough",
+        "018050000060000049900207000700006030000308000030500007000709004450000070000020360",
+        (
+            "Naked Singles",
+            "Hidden Singles",
+            "Hidden Pair",
+            "Pointing Pairs",
+            "Line/Unit Reduction",
+            "Unique Rectangle Type 1",
+            "Y-Wing",
+        ),
+    ),
+    Reference(
+        "Naked Triples",
+        "000104300000080000009020004560700000030008050000006038801090700000070000004201000",
+        (
+            "Hidden Singles",
+            "Naked Singles",
+            "Naked Pair",
+            "Pointing Pairs",
+            "Naked Triple",
+            "Hidden Pair",
+            "Unique Rectangle Type 1",
+            "W-Wing",
+        ),
+    ),
+    Reference(
+        "Hidden Triple",
+        "307060090540000008060100000100700000080201070000005004000009030900000067020050809",
+        (
+            "Naked Singles",
+            "Hidden Singles",
+            "Naked Pair",
+            "Pointing Pairs",
+            "Hidden Triple",
+            "Hidden Pair",
+            "W-Wing",
+        ),
+    ),
+    Reference(
+        "X-Wing x3",
+        "000900000705080009020007050840009005000705000000100027010400030500090704000002000",
+        (
+            "Hidden Singles",
+            "Naked Singles",
+            "Naked Pair",
+            "Pointing Pairs",
+            "X-Wing",
+            "Bi-value Universal Grave",
+        ),
+    ),
+    Reference(
+        "Y-Wing x3",
+        "540000800000700002003092060010050090300000007020060040060930700700005000001000056",
+        ("Naked Singles", "Hidden Singles", "Naked Pair", "Y-Wing", "W-Wing"),
+    ),
+    Reference(
+        # https://www.sudokuwiki.org/X_Wing_Strategy, "X-Wing Exemplars". The page
+        # calls it "otherwise trivial"; the solver's own path disagrees.
+        "X-Wing Exemplar 1, x3 (score 74)",
+        "000001008700030009020000061080009003001040900900300020240000080600090005100600000",
+        ("Hidden Singles", "Naked Singles", "X-Wing", "Chute Remote Pair", "Naked Pair"),
+    ),
+]
+"""Ordered from easiest to hardest by SudokuWiki's tier; beyond tier 3 last."""
+
+_RANK = [*Tier, None]
+
+
+@pytest.mark.parametrize("ref", SUDOKUWIKI, ids=[r.name for r in SUDOKUWIKI])
+def test_each_reference_is_unique(ref: Reference) -> None:
+    # A typo would make another puzzle, usually one without a single solution.
+    assert count_solutions(ref.givens) == 1
+
+
+@pytest.mark.parametrize("ref", SUDOKUWIKI, ids=[r.name for r in SUDOKUWIKI])
+def test_each_reference_gets_the_tier_sudokuwiki_implies(ref: Reference) -> None:
+    # Including None: what SudokuWiki needed a technique beyond tier 3 for is
+    # discarded here, never shipped as Hard (DIFFICULTY.md, the discard rule).
+    g = grade(ref.givens)
+
+    assert (None if g is None else g.tier) is ref.tier
+
+
+@pytest.mark.parametrize(
+    "ref", [r for r in SUDOKUWIKI if r.tier], ids=[r.name for r in SUDOKUWIKI if r.tier]
+)
+def test_within_tier_3_we_use_the_same_techniques_as_sudokuwiki(ref: Reference) -> None:
+    # Stronger than the tier: the same set of techniques fired, not merely the
+    # same hardest one. The ladder order is the same in both solvers.
+    g = grade(ref.givens)
+    assert g is not None
+
+    assert {name for name, n in g.counts.items() if n} == {OUR_NAME[t] for t in ref.used}
+
+
+def test_the_references_keep_sudokuwikis_order() -> None:
+    # DIFFICULTY.md's requirement as worded: the same relative order, exact
+    # labels not required. The test above is stricter; this one is the floor.
+    ours = []
+    for ref in SUDOKUWIKI:
+        g = grade(ref.givens)
+        ours.append(_RANK.index(None if g is None else g.tier))
+
+    theirs = [_RANK.index(ref.tier) for ref in SUDOKUWIKI]
+    assert theirs == sorted(theirs)  # the list itself is in order
+    assert ours == sorted(ours)
