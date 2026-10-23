@@ -386,6 +386,23 @@ entries are visibly inactive rather than broken links.
 A *signed-out* visitor sees a short explanation of what the site is and a 42
 login button — and no puzzle, per Q13.
 
+### Q11 — Puzzle pre-generation operations (answered)
+Decided 2026-10-23, with the measurements behind it: a day's three puzzles take
+about 17 s to generate (Easy 0.2 s, Medium 0.5 s, Hard 16 s on average, 35 s at
+worst), almost all of it spent finding a Hard.
+
+| Question | Answer |
+|---|---|
+| How many days ahead | **7**: today and the six days after it always exist |
+| What runs it | its own compose service, `puzzles`: same image and code as `api`, another command (`python -m app.jobs.generate_puzzles --every 3600`). Its own process, so a 16-second Hard never slows the API |
+| How often | every hour. Idempotent: what already exists is left alone, so a restart or a second run is harmless |
+| If a generation fails | retried with another seed; a day still missing is logged as a warning and tried again next hour |
+| If a day has no puzzles anyway | `POST /api/games` answers `503 puzzle_unavailable` (`API.md`). No on-demand fallback: it would undermine A1 and make a player wait |
+| Who is alerted | open: Q14 |
+
+Generating on demand at midnight was rejected for the same reason as in A1: the
+first player of the day would wait on a Hard.
+
 ---
 
 ## Adopted from the design review — say so if you disagree
@@ -450,7 +467,7 @@ libraries — that change the setup.
 The repository exists, on GitHub (`gabrielrial/42_sudoku`). Still open: public
 or private? Which licence? README aimed at whom?
 
-### Q11 — Puzzle pre-generation operations
-How many days ahead does the job generate? What happens if it fails and a day
-has no puzzles — an error page, or on-demand generation as a fallback (which
-would undermine A1)? Who is alerted?
+### Q14 — Who is told when puzzle generation fails
+Split from Q11 on 2026-10-23. Until stage 3 a failure is a warning in the log of
+the `puzzles` service and nothing more. Before the public stage: who hears about
+it, and how (mail, a chat message, a health check that turns red)?

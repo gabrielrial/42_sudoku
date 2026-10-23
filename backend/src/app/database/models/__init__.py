@@ -7,7 +7,8 @@ table Alembic cannot see. Add each new model below.
 """
 
 from app.database.models.oauth_states import OAuthState
+from app.database.models.puzzles import Puzzle, PuzzleSolution
 from app.database.models.refresh_tokens import RefreshToken
 from app.database.models.users import User
 
-__all__ = ["OAuthState", "RefreshToken", "User"]
+__all__ = ["OAuthState", "Puzzle", "PuzzleSolution", "RefreshToken", "User"]

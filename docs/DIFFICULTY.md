@@ -153,6 +153,17 @@ the same, and nobody notices for weeks. These tests are therefore not optional.
 - Published puzzles with known ratings are ranked by this grader in the same
   relative order. Exact label agreement is not required; disagreement about
   which of two puzzles is harder is a failure.
+
+  The rating used is the **solve path of an independent solver**, not a label
+  printed next to a puzzle: SudokuWiki's solver (sudokuwiki.org, Andrew
+  Stuart), whose ladder begins with the same techniques in the same order.
+  Its techniques map onto our tiers; any technique outside our ladder means
+  the puzzle must be discarded here. Labels are not enough: SudokuWiki's
+  "X-Wing exemplars" are described as needing nothing harder than an X-Wing,
+  and its own solver needs a Chute Remote Pair for the first of them. Each
+  reference records the grid, the techniques the solve path used, and the
+  solver version, and is checked for a unique solution. Where no published
+  puzzle fits a tier, a generated one rated by that solver stands in.
 - Every generated puzzle has exactly one solution, verified independently of
   the generator that produced it.
 - The grader produces the same tier for the same puzzle on repeated runs, and

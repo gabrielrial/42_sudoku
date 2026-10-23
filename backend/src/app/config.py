@@ -34,6 +34,9 @@ class Settings(BaseSettings):
 
     login_attempts_per_minute: int = 5
 
+    # Today and the days after it that always have their puzzles (DECISIONS.md Q11).
+    puzzle_days_ahead: int = 7
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"

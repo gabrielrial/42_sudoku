@@ -69,7 +69,10 @@ somebody else's stale row.
 
 - `UNIQUE (puzzle_date, difficulty)` — the constraint that makes "one puzzle per
   day per difficulty" a database guarantee rather than a convention.
-- `INDEX (puzzle_date)`.
+- No separate index on `puzzle_date`: the unique constraint's own index starts
+  with that column, so it already serves lookups by date. A second one would
+  only cost writes.
+- `Puzzle` has no ORM relationship to `PuzzleSolution`, on purpose: see below.
 
 ## `puzzle_solutions`
 

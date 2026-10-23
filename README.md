@@ -38,6 +38,11 @@ docker compose exec api alembic upgrade head
 
 `Ctrl-C` stops everything. `docker compose down -v` also deletes the database.
 
+Besides `db`, `api` and `web`, compose runs `puzzles`: every hour it makes sure
+today and the next six days have their three puzzles, generating whatever is
+missing. A fresh database fills in two or three minutes; `docker compose logs
+-f puzzles` shows it working, and `make puzzles` runs one round by hand.
+
 The `Makefile` wraps this: plain `make` (or `make all`) starts and migrates,
 keeping the data. `make re` starts from zero and **deletes the database**; so
 does `make fclean`. Only those two, typed on purpose, ever delete it.
