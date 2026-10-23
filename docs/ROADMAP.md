@@ -82,6 +82,11 @@ handling. Unique constraint on `(puzzle_date, difficulty)`.
 Exit: three puzzles exist for today and for the next N days; DST boundary tests
 pass (last Sunday of March and of October).
 
+Status (2026-10-23, Stage 4 of `PLAN.md`): `puzzles` and `puzzle_solutions`
+with their constraints; `ensure_puzzles`, which fills what is missing and
+verifies every puzzle before storing it; the `puzzles` compose service, which
+runs it every hour for seven days ahead (Q11).
+
 ## Phase 4 — Authentication (in progress)
 
 The 42 OAuth2 flow: redirect, `state` + PKCE, callback, `/v2/me`, local user

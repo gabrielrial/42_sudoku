@@ -165,6 +165,10 @@ discuss, not a test to loosen.
 
 ### Stage 4 — Phase 3: daily puzzles 🧩🔐 · `feature/daily-puzzles`
 
+**Done 2026-10-23.** Seven days ahead, not N; the scheduler is the `puzzles`
+compose service (Q11). Changed on the way: no separate index on `puzzle_date`
+(`DATA_MODEL.md` says why).
+
 | Commit | Change | Tests |
 |---|---|---|
 | 4a | `puzzles`, `puzzle_solutions` models + migration (CHECKs, `UNIQUE (puzzle_date, difficulty)`, cascade FK) | constraints enforced by the database; read path never loads the solution |
@@ -230,7 +234,7 @@ New, numbered `P` so they cannot collide with `DECISIONS.md`:
 
 | # | Question | Needed by | Proposal |
 |---|---|---|---|
-| P1 | How the generation job runs: compose service looping, host cron calling a CLI, or a thread at API start-up | Stage 4 | compose service + idempotent CLI |
+| ~~P1~~ | ~~How the generation job runs~~ | Stage 4 | **Answered 2026-10-23: its own compose service** (Q11) |
 | P2 | Cookies on the LAN: HTTPS through a proxy (Caddy, mkcert), or a `COOKIE_SECURE` setting independent of `APP_ENV` | Stage 7 | — |
 | P3 | Serving the built front end: FastAPI `StaticFiles` (one origin, nothing new) or an nginx/Caddy container | Stage 7 | FastAPI |
 | ~~P4~~ | ~~Fake provider: deployments must declare their environment; fake accepts `?as=<login>` to test with several users~~ | Stage 1 | **Answered 2026-10-20: yes to both** — D19 (Stage 1f) |
