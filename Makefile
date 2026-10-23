@@ -3,6 +3,8 @@
 #   make           start (or restart) keeping the data, then migrate
 #   make all       the same
 #   make migrate   apply pending Alembic migrations
+#   make puzzles   one round of puzzle generation by hand (the puzzles service
+#                  does it every hour)
 #   make test      the backend tests, against the sudoku_test database
 #   make check     what CI checks: lint, format, types, tests, front-end build
 #   make down      stop the containers, keeping the data
@@ -18,7 +20,7 @@
 COMPOSE := docker compose
 
 .DEFAULT_GOAL := all
-.PHONY: all up migrate test check down clean fclean re logs ps
+.PHONY: all up migrate puzzles test check down clean fclean re logs ps
 
 all: up migrate
 
@@ -29,6 +31,10 @@ up:
 
 migrate:
 	$(COMPOSE) exec api alembic upgrade head
+
+# Today and the next days (PUZZLE_DAYS_AHEAD): whatever is missing is made.
+puzzles:
+	$(COMPOSE) exec api python -m app.jobs.generate_puzzles
 
 # The api container's own DATABASE_URL, with the database swapped for
 # sudoku_test: the tests drop and recreate the schema of whatever they use.

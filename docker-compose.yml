@@ -25,7 +25,7 @@ services:
 
   api:
     build: ./backend
-    environment:
+    environment: &backend-environment
       # Required, no default (D19): compose refuses to start without it.
       APP_ENV: ${APP_ENV:?set APP_ENV in .env - development, test or production}
       SECRET_KEY: ${SECRET_KEY:-dev-only-not-a-real-secret}
@@ -36,6 +36,7 @@ services:
       FORTYTWO_CLIENT_SECRET: ${FORTYTWO_CLIENT_SECRET:-}
       FORTYTWO_REDIRECT_URI: ${FORTYTWO_REDIRECT_URI:-}
       LOGIN_ATTEMPTS_PER_MINUTE: ${LOGIN_ATTEMPTS_PER_MINUTE:-5}
+      PUZZLE_DAYS_AHEAD: ${PUZZLE_DAYS_AHEAD:-7}
     depends_on:
       db:
         condition: service_healthy
@@ -45,6 +46,21 @@ services:
     volumes:
       - ./backend:/srv
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # The daily puzzles, generated ahead of time (DECISIONS.md Q11). Same image,
+  # code and settings as api, another command: every hour it makes sure today
+  # and the next days have their puzzles. Its own process, so a 16-second Hard
+  # never slows the API. `make puzzles` runs one round by hand.
+  puzzles:
+    build: ./backend
+    environment: *backend-environment
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./backend:/srv
+    command: python -m app.jobs.generate_puzzles --every 3600
+    restart: unless-stopped
 
   web:
     build: ./frontend
