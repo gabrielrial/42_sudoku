@@ -114,8 +114,11 @@ load-bearing.
   never used to compute a stored time.
 - `completed_at` is written only after the backend has verified the submitted
   grid against the stored solution.
-- Completion is explicit: the client submits a full grid. An incorrect
-  submission leaves the game open; the attempt is counted and stored.
+- Completion is explicit: the player asks for the grid to be checked, once all
+  81 cells are filled. What is checked is the grid the server holds — every
+  input already went through it — never a grid sent with the request, which
+  could disagree with it (`LESSONS.md` D). An incorrect submission leaves the
+  game open; the attempt is counted and stored.
 - Only **full-grid submissions** are counted. A wrong digit typed into a cell is
   an ordinary input, is never flagged as wrong (the server does not know or say
   whether a cell is correct), and is never recorded as an error.
