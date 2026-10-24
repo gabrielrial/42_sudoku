@@ -127,6 +127,10 @@ input persistence, rate limiting, completion verification, server-side timing.
 Exit: the whole loop is exercisable through the API alone, with tests covering
 every rule in `GAME_RULES.md`.
 
+Status (2026-10-24, Stage 5 of `PLAN.md`): built. Today's puzzles, starting,
+resuming, inputs, heartbeats and completion, each with its rate limit and its
+authorisation, and a test that walks them all looking for the solution.
+
 ## Phase 6 — Frontend
 
 Login flow, home page, board, input, resume, heartbeat, timer display,

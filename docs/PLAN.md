@@ -179,6 +179,10 @@ Done: `ROADMAP.md` Phase 3 exit; the solution exists only in `puzzle_solutions`.
 
 ### Stage 5 — Phase 5: game API 🔐 · `feature/game-api`
 
+**Done 2026-10-24.** Decided on the way: D22 (submission count, input burst,
+heartbeat on a completed game, `closed_at` left for Phase 8). The solution is
+compared in constant time, and only in `/complete`.
+
 | Commit | Change |
 |---|---|
 | 5a | `game_sessions` + migration; pure `session_status(...)`; thresholds become settings (ends the `clock.py` constant) |
