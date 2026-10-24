@@ -6,9 +6,9 @@ field for the solution: it cannot leak through a response by accident.
 
 import uuid
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, StrictInt
 
 Difficulty = Literal["easy", "medium", "hard"]
 TodayStatus = Literal["not_started", "in_progress", "completed", "closed"]
@@ -59,3 +59,13 @@ class GameView(BaseModel):
     official_seconds: int | None
     active_seconds: int
     submission_count: int
+
+
+class CellInput(BaseModel):
+    """``{"value": 7}``, or ``{"value": null}`` to clear. The key is required.
+
+    ``StrictInt``: ``"7"``, ``7.0`` and ``true`` are refused, not coerced. The
+    client is hostile; nothing it sends is interpreted generously.
+    """
+
+    value: Annotated[StrictInt, Field(ge=1, le=9)] | None

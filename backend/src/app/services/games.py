@@ -11,7 +11,7 @@ for another day's puzzle at all.
 
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from fastapi import status
 from sqlalchemy import select
@@ -206,3 +206,53 @@ def owned_game(
 
 def _not_found() -> APIError:
     return APIError("game_not_found", "No such game.", status.HTTP_404_NOT_FOUND)
+
+
+# --- playing: inputs and heartbeats -------------------------------------------------------
+# Both prove presence, and only the server's clock measures it (API.md,
+# heartbeat). Neither looks at the solution: whether a digit is right is not
+# something this path knows, so it cannot leak it (SECURITY.md, the oracle).
+
+
+def play_cell(
+    db: Session, owned: OwnedGame, index: int, value: int | None, now: datetime, gap: timedelta
+) -> None:
+    """Write ``value`` (1-9, or ``None`` to clear) into cell ``index``.
+
+    Legality only (GAME_RULES.md §3): the game is open and the cell is not a
+    given. A wrong digit is an ordinary input, stored like any other.
+    """
+    game = _open(owned)
+    if owned.puzzle.givens[index] != "0":
+        raise APIError(
+            "cell_is_given", "That cell is part of the puzzle.", status.HTTP_409_CONFLICT
+        )
+    digit = "0" if value is None else str(value)
+    game.state = game.state[:index] + digit + game.state[index + 1 :]
+    _touch(game, now, gap)
+    db.commit()
+
+
+def heartbeat(db: Session, owned: OwnedGame, now: datetime, gap: timedelta) -> None:
+    """The player is here. Nothing else changes."""
+    _touch(_open(owned), now, gap)
+    db.commit()
+
+
+def _open(owned: OwnedGame) -> GameSession:
+    """The game, if it can still be played. (Closed games never get here:
+    ``owned_game`` answered 410 already.)"""
+    if owned.status is Status.COMPLETED:
+        raise APIError(
+            "game_completed", "This game is already completed.", status.HTTP_409_CONFLICT
+        )
+    return owned.game
+
+
+def _touch(game: GameSession, now: datetime, gap: timedelta) -> None:
+    """Record a contact. The time since the previous one counts as active time
+    when it is short enough to be play rather than absence (D10)."""
+    delta = now - game.last_activity_at
+    if timedelta(0) < delta <= gap:
+        game.active_seconds += round(delta.total_seconds())
+    game.last_activity_at = max(now, game.last_activity_at)

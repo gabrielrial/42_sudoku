@@ -229,10 +229,21 @@ Validates **legality only** (`GAME_RULES.md` §3): the game is the caller's and
 open, the cell is not a given, the value is 1–9 or null. It never reveals
 whether the value is correct, and a wrong digit is not recorded anywhere.
 
-Also updates `last_activity_at` and accumulates `active_seconds`.
+Also updates `last_activity_at` and accumulates `active_seconds`, as the
+heartbeat below does. A right and a wrong digit get byte-for-byte the same
+answer, and the request never reads `puzzle_solutions` at all.
+
+`value` must be present: an integer 1–9, or `null`. Nothing is coerced —
+`"7"`, `7.0` and `true` are `422`, like `0` or `10`. The game row is locked for
+the request, so two inputs on one game take turns.
+
+Rate limit (D22): a bucket of 10 per game, refilled at one per second. It is
+taken only once the game is known to be the caller's, so requests on someone
+else's game stop at `404` and cost its owner nothing.
 
 | Condition | Response |
 |---|---|
+| Not the caller's game, or no such game | `404 game_not_found` |
 | Cell is a given | `409 cell_is_given` |
 | Game already completed | `409 game_completed` |
 | Game closed by rollover | `410 game_closed` |
@@ -246,14 +257,23 @@ Also updates `last_activity_at` and accumulates `active_seconds`.
 No body. Says only "the player is here". The server does the arithmetic:
 
     delta = now - last_activity_at
-    if delta <= 90s:  active_seconds += delta      # continuous play
-    else:             active_seconds += 0          # an idle gap
+    if 0 < delta <= 90s:  active_seconds += round(delta)   # continuous play
+    else:                 active_seconds += 0              # an idle gap
     last_activity_at = now
 
 **Active time is therefore computed by the server, not reported by the client.**
 The client cannot state a duration; it can only prove presence at an instant.
 A script can still hold a session open by heartbeating without playing, but that
 only ever makes a time worse, and the 02:00 cap bounds it regardless (Q1).
+
+Rate limit: two per minute per game (D5). A body, if any, is ignored.
+
+| Condition | Response |
+|---|---|
+| Not the caller's game, or no such game | `404 game_not_found` |
+| Game already completed | `409 game_completed` (D22) |
+| Game closed by rollover | `410 game_closed` |
+| Over the rate limit | `429` |
 
 ### `POST /api/games/{id}/complete`
 
