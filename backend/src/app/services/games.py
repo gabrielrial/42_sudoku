@@ -144,3 +144,65 @@ def _already_exists(game: GameSession) -> APIError:
         status.HTTP_409_CONFLICT,
         extra={"game_id": str(game.id)},
     )
+
+
+# --- an existing game: the caller's, or nobody's ---------------------------------------
+
+
+@dataclass(frozen=True)
+class OwnedGame:
+    game: GameSession
+    puzzle: Puzzle
+    status: Status
+
+
+def owned_game(
+    db: Session,
+    user: User,
+    game_id: str,
+    now: datetime,
+    thresholds: Thresholds,
+    *,
+    for_update: bool = False,
+) -> OwnedGame:
+    """The caller's game ``game_id``, with its puzzle and status.
+
+    ``404 game_not_found`` when there is no such game *or* it is someone else's:
+    the two answers are identical, so an id never confirms that a game exists
+    (``API.md``, Authorisation). ``410 game_closed`` when the rollover closed it.
+    ``for_update`` locks the row until the caller's commit, so two requests on
+    one game take turns instead of overwriting each other.
+    """
+    try:
+        key = uuid.UUID(game_id)
+    except ValueError:
+        raise _not_found() from None
+    query = (
+        select(GameSession, Puzzle)
+        .join(Puzzle, Puzzle.id == GameSession.puzzle_id)
+        .where(GameSession.id == key, GameSession.user_id == user.id)
+    )
+    if for_update:
+        query = query.with_for_update(of=GameSession)
+    row = db.execute(query).one_or_none()
+    if row is None:
+        raise _not_found()
+    game, puzzle = row
+    game_status = session_status(
+        puzzle_date=puzzle.puzzle_date,
+        completed_at=game.completed_at,
+        last_activity_at=game.last_activity_at,
+        now=now,
+        thresholds=thresholds,
+    )
+    if game_status is Status.CLOSED:
+        raise APIError(
+            "game_closed",
+            "This game was closed when its day ended.",
+            status.HTTP_410_GONE,
+        )
+    return OwnedGame(game, puzzle, game_status)
+
+
+def _not_found() -> APIError:
+    return APIError("game_not_found", "No such game.", status.HTTP_404_NOT_FOUND)

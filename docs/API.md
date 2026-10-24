@@ -209,8 +209,11 @@ Resuming. Returns everything needed to rebuild the board.
 
 | Condition | Response |
 |---|---|
-| Not the caller's game, or no such game | `404 game_not_found` |
+| Not the caller's game, no such game, or an id that is not a UUID | `404 game_not_found`, the same answer in all three cases |
 | Closed by the rollover rule | `410 game_closed` |
+
+Reading a game is not activity: it does not move `last_activity_at`, so it
+cannot keep a past-day game alive. Only inputs and heartbeats do.
 
 `410 Gone` is the right code and worth the precision: the game existed, the user
 owned it, and it can never be interacted with again.

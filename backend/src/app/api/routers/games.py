@@ -5,10 +5,12 @@ from sqlalchemy.orm import Session
 
 from app import clock
 from app.api.dependencies import get_current_user
+from app.config import Settings, get_settings
 from app.database.conf.dependencies import get_db
 from app.database.models.users import User
-from app.database.schema.games import GameStarted, NewGame
-from app.services.games import start_game
+from app.database.schema.games import GameStarted, GameView, NewGame
+from app.services.game_status import Thresholds
+from app.services.games import official_seconds, owned_game, start_game
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -29,4 +31,30 @@ def create_game(
         givens=puzzle.givens,
         state=game.state,
         started_at=game.started_at,
+    )
+
+
+@router.get("/{game_id}", response_model=GameView)
+def read_game(
+    game_id: str,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> GameView:
+    """Resuming: the board as the server holds it. Reading is not activity: it
+    neither moves ``last_activity_at`` nor keeps a past-day game alive."""
+    owned = owned_game(db, user, game_id, clock.now(), Thresholds.from_settings(settings))
+    game, puzzle = owned.game, owned.puzzle
+    return GameView(
+        game_id=game.id,
+        difficulty=puzzle.difficulty,
+        date=puzzle.puzzle_date,
+        givens=puzzle.givens,
+        state=game.state,
+        status=owned.status.value,
+        started_at=game.started_at,
+        completed_at=game.completed_at,
+        official_seconds=official_seconds(game),
+        active_seconds=game.active_seconds,
+        submission_count=game.submission_count,
     )

@@ -42,3 +42,20 @@ class GameStarted(BaseModel):
     givens: str
     state: str
     started_at: datetime
+
+
+class GameView(BaseModel):
+    """Everything needed to rebuild the board when resuming (``API.md``)."""
+
+    game_id: uuid.UUID
+    difficulty: Difficulty
+    date: date
+    givens: str
+    state: str
+    status: Literal["in_progress", "completed"]
+    """Never "closed": a closed game answers 410 instead."""
+    started_at: datetime
+    completed_at: datetime | None
+    official_seconds: int | None
+    active_seconds: int
+    submission_count: int
