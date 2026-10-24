@@ -293,12 +293,22 @@ increments `submission_count` and says nothing about *which* cells are wrong —
 that would be the oracle from `SECURITY.md`.
 
 Idempotent: calling it again on a completed game returns the same result and
-does not move `completed_at` (D13).
+does not move `completed_at` (D13). That repeat is not rate-limited: once the
+grid is right there is nothing left to guess.
+
+Every full-grid submission counts, the correct one included (D22); a grid with
+an empty cell is not a submission and is not counted. A wrong answer is the same
+two fields however many cells are wrong. The comparison runs in constant time,
+so how long it takes says nothing about how much of the grid is right. Anything
+in a request body is ignored.
+
+Rate limit: five per minute per game (D5), taken after ownership.
 
 | Condition | Response |
 |---|---|
+| Not the caller's game, or no such game | `404 game_not_found` |
 | Grid not yet full | `409 grid_incomplete` |
-| Game closed by rollover | `410 game_closed` |
+| Game closed by rollover | `410 game_closed`, however right the grid |
 | Over the rate limit | `429` |
 
 ---

@@ -10,9 +10,22 @@ from app.api.rate_limits import enforce
 from app.config import Settings, get_settings
 from app.database.conf.dependencies import get_db
 from app.database.models.users import User
-from app.database.schema.games import CellInput, GameStarted, GameView, NewGame
-from app.services.game_status import Thresholds
-from app.services.games import heartbeat, official_seconds, owned_game, play_cell, start_game
+from app.database.schema.games import (
+    CellInput,
+    CompletionResult,
+    GameStarted,
+    GameView,
+    NewGame,
+)
+from app.services.game_status import Status, Thresholds
+from app.services.games import (
+    complete,
+    heartbeat,
+    official_seconds,
+    owned_game,
+    play_cell,
+    start_game,
+)
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -99,3 +112,30 @@ def post_heartbeat(
     enforce(request.app.state.heartbeat_limiter, str(owned.game.id), "Too many heartbeats.")
     heartbeat(db, owned, now, timedelta(seconds=settings.game_active_gap_seconds))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/{game_id}/complete", response_model=CompletionResult, response_model_exclude_none=True
+)
+def post_complete(
+    game_id: str,
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> CompletionResult:
+    """Check the grid the server holds. No request body: a grid sent with the
+    request could disagree with the stored one (LESSONS.md D), and is ignored."""
+    now = clock.now()
+    owned = owned_game(db, user, game_id, now, Thresholds.from_settings(settings), for_update=True)
+    # A completed game answers its stored result without spending a token: there
+    # is nothing left to guess. Otherwise this is the brute-force path (D5).
+    if owned.status is not Status.COMPLETED:
+        enforce(request.app.state.completion_limiter, str(owned.game.id), "Too many submissions.")
+    result = complete(db, owned, now, timedelta(seconds=settings.game_active_gap_seconds))
+    return CompletionResult(
+        correct=result.correct,
+        submission_count=result.submission_count,
+        official_seconds=result.official_seconds,
+        active_seconds=result.active_seconds,
+    )

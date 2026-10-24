@@ -69,3 +69,15 @@ class CellInput(BaseModel):
     """
 
     value: Annotated[StrictInt, Field(ge=1, le=9)] | None
+
+
+class CompletionResult(BaseModel):
+    """``{"correct": true, ...times...}`` or ``{"correct": false, "submission_count": n}``.
+
+    A wrong answer says only that it is wrong: not which cells, not how many.
+    """
+
+    correct: bool
+    submission_count: int
+    official_seconds: int | None = None
+    active_seconds: int | None = None

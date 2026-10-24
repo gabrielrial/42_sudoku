@@ -9,6 +9,7 @@ A game can only be created for **today's** puzzle, today being the Berlin day
 for another day's puzzle at all.
 """
 
+import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -20,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.clock import today
 from app.database.models.game_sessions import GameSession
-from app.database.models.puzzles import DIFFICULTIES, Puzzle
+from app.database.models.puzzles import DIFFICULTIES, Puzzle, PuzzleSolution
 from app.database.models.users import User
 from app.errors import APIError
 from app.services.game_status import Status, Thresholds, session_status
@@ -256,3 +257,50 @@ def _touch(game: GameSession, now: datetime, gap: timedelta) -> None:
     if timedelta(0) < delta <= gap:
         game.active_seconds += round(delta.total_seconds())
     game.last_activity_at = max(now, game.last_activity_at)
+
+
+# --- completion: the one place the solution is read -------------------------------------
+
+
+@dataclass(frozen=True)
+class Completion:
+    correct: bool
+    submission_count: int
+    official_seconds: int | None
+    active_seconds: int | None
+
+
+def complete(db: Session, owned: OwnedGame, now: datetime, gap: timedelta) -> Completion:
+    """Check the grid the server holds against the solution (D13).
+
+    The answer is one boolean, never which cells are wrong (SECURITY.md). Every
+    full-grid submission is counted (D22); a grid with empty cells is not a
+    submission at all. Idempotent once correct: the stored result is returned
+    and ``completed_at`` never moves.
+    """
+    game = owned.game
+    if owned.status is Status.COMPLETED:
+        return _result(game, correct=True)
+    if "0" in game.state:
+        raise APIError(
+            "grid_incomplete", "Fill every cell before submitting.", status.HTTP_409_CONFLICT
+        )
+    solution = db.get(PuzzleSolution, owned.puzzle.id)
+    if solution is None:  # a puzzle is never stored without one (services/puzzles.py)
+        raise RuntimeError(f"puzzle {owned.puzzle.id} has no solution")
+
+    _touch(game, now, gap)
+    game.submission_count += 1
+    # Constant time: an ordinary comparison stops at the first difference, and
+    # how long it took would hint at how many leading cells are right.
+    correct = secrets.compare_digest(game.state.encode(), solution.solution.encode())
+    if correct:
+        game.completed_at = now  # only ever written after this check (D2)
+    db.commit()
+    return _result(game, correct=correct)
+
+
+def _result(game: GameSession, *, correct: bool) -> Completion:
+    if not correct:
+        return Completion(False, game.submission_count, None, None)
+    return Completion(True, game.submission_count, official_seconds(game), game.active_seconds)
