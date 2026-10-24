@@ -5,87 +5,24 @@ says, and puzzles are written straight into the database.
 """
 
 from collections.abc import Callable
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
-from httpx import Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app import clock
 from app.database.models.game_sessions import GameSession
-from app.database.models.puzzles import Puzzle, PuzzleSolution
 from app.database.models.users import User
 from app.services import games as games_service
-from sudoku.solver import unique_solution
+from tests.api.games import DAY, GAMES, GIVENS, NOW, SOLUTION, TODAY
+from tests.api.games import make_puzzle as _puzzle
+from tests.api.games import other_user as _other_user
+from tests.api.games import start as _start
 from tests.api.helpers import error_code, sign_in
 
-pytestmark = pytest.mark.db
-
-TODAY = "/api/puzzles/today"
-GAMES = "/api/games"
-
-GIVENS = "000090001084000000092040000007203000600514002000000300000000960000000700001078400"
-SOLUTION = unique_solution(GIVENS)
-assert SOLUTION is not None
-# 21:30 UTC on 24 October is 23:30 in Berlin: still the 24th there.
-NOW = datetime(2026, 10, 24, 21, 30, tzinfo=clock.UTC)
-DAY = date(2026, 10, 24)
-
-
-@pytest.fixture(autouse=True)
-def fixed_clock(monkeypatch: pytest.MonkeyPatch) -> Callable[[datetime], None]:
-    def set_now(instant: datetime) -> None:
-        monkeypatch.setattr(clock, "now", lambda: instant)
-
-    set_now(NOW)
-    return set_now
-
-
-def _puzzle(db: Session, day: date, difficulty: str) -> Puzzle:
-    puzzle = Puzzle(
-        puzzle_date=day,
-        difficulty=difficulty,
-        givens=GIVENS,
-        clue_count=26,
-        hardest_technique="naked_triple",
-        technique_counts={},
-        generator_version="1",
-        seed=1,
-    )
-    db.add(puzzle)
-    db.flush()
-    db.add(PuzzleSolution(puzzle_id=puzzle.id, solution=SOLUTION))
-    db.commit()
-    return puzzle
-
-
-@pytest.fixture
-def week(db: Session) -> dict[tuple[date, str], Puzzle]:
-    """Yesterday's, today's and tomorrow's puzzles, all three difficulties."""
-    return {
-        (day, d): _puzzle(db, day, d)
-        for day in (DAY - timedelta(days=1), DAY, DAY + timedelta(days=1))
-        for d in ("easy", "medium", "hard")
-    }
-
-
-@pytest.fixture
-def signed_in(db: Session, db_client: TestClient, user: User) -> TestClient:
-    sign_in(db_client, db, user)
-    return db_client
-
-
-def _start(client: TestClient, difficulty: str = "hard") -> Response:
-    return client.post(GAMES, json={"difficulty": difficulty})
-
-
-def _other_user(db: Session) -> User:
-    other = User(intra_id=777, login="bob", campus_id=1, campus_name="Berlin")
-    db.add(other)
-    db.commit()
-    return other
+pytestmark = [pytest.mark.db, pytest.mark.usefixtures("fixed_clock")]
 
 
 # --- signed in only -----------------------------------------------------------------------
