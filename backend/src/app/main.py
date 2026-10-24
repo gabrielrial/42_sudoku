@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.csrf import require_frontend_origin
 from app.api.routers import health
 from app.api.routers.auth import router as auth_router
+from app.api.routers.games import router as games_router
+from app.api.routers.puzzles import router as puzzles_router
 from app.api.routers.users import router as user_router
 from app.config import get_settings
 from app.errors import register_error_handlers
@@ -42,6 +44,8 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api")
     app.include_router(user_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
+    app.include_router(puzzles_router, prefix="/api")
+    app.include_router(games_router, prefix="/api")
 
     return app
 

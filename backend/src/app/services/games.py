@@ -1,0 +1,146 @@
+"""Games: listing today's puzzles and starting one (``GAME_RULES.md`` §2, ``API.md``).
+
+Seeing a puzzle is starting its clock (Q13). The listing of today's puzzles
+therefore never carries a cell, and the only way to a grid is to create a game,
+which sets ``started_at`` and can never be undone (D3).
+
+A game can only be created for **today's** puzzle, today being the Berlin day
+(D1, D6). The request names a difficulty, never a date: there is no way to ask
+for another day's puzzle at all.
+"""
+
+import uuid
+from dataclasses import dataclass
+from datetime import date, datetime
+
+from fastapi import status
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
+
+from app.clock import today
+from app.database.models.game_sessions import GameSession
+from app.database.models.puzzles import DIFFICULTIES, Puzzle
+from app.database.models.users import User
+from app.errors import APIError
+from app.services.game_status import Status, Thresholds, session_status
+
+
+@dataclass(frozen=True)
+class TodayEntry:
+    difficulty: str
+    status: str
+    game_id: uuid.UUID | None
+    official_seconds: int | None
+    active_seconds: int | None
+
+
+def official_seconds(game: GameSession) -> int | None:
+    """``completed_at - started_at`` in whole seconds (D2); ``None`` until completed."""
+    if game.completed_at is None:
+        return None
+    return int((game.completed_at - game.started_at).total_seconds())
+
+
+def todays_puzzles(
+    db: Session, user: User, now: datetime, thresholds: Thresholds
+) -> tuple[date, list[TodayEntry]]:
+    """Today's difficulties and where the caller stands on each. A difficulty
+    with no puzzle generated for today is left out (``API.md``)."""
+    day = today(now)
+    rows = db.execute(select(Puzzle.id, Puzzle.difficulty).where(Puzzle.puzzle_date == day)).all()
+    puzzle_ids = {difficulty: puzzle_id for puzzle_id, difficulty in rows}
+    games = {
+        game.puzzle_id: game
+        for game in db.scalars(
+            select(GameSession).where(
+                GameSession.user_id == user.id,
+                GameSession.puzzle_id.in_(puzzle_ids.values()),
+            )
+        )
+    }
+    entries = []
+    for difficulty in DIFFICULTIES:
+        if difficulty not in puzzle_ids:
+            continue
+        game = games.get(puzzle_ids[difficulty])
+        if game is None:
+            entries.append(TodayEntry(difficulty, "not_started", None, None, None))
+            continue
+        game_status = session_status(
+            puzzle_date=day,
+            completed_at=game.completed_at,
+            last_activity_at=game.last_activity_at,
+            now=now,
+            thresholds=thresholds,
+        )
+        completed = game_status is Status.COMPLETED
+        entries.append(
+            TodayEntry(
+                difficulty,
+                game_status.value,
+                game.id,
+                official_seconds(game),
+                game.active_seconds if completed else None,
+            )
+        )
+    return day, entries
+
+
+def start_game(
+    db: Session, user: User, difficulty: str, now: datetime
+) -> tuple[GameSession, Puzzle]:
+    """Create the caller's game of today's puzzle of ``difficulty``.
+
+    ``503 puzzle_unavailable`` when today has no such puzzle (Q11: no
+    generation on demand). ``409 game_already_exists``, with its ``game_id``,
+    when the caller already has one — also when two requests race to create it:
+    the unique constraint decides, and the loser is answered like a repeat.
+    """
+    puzzle = db.scalar(
+        select(Puzzle).where(Puzzle.puzzle_date == today(now), Puzzle.difficulty == difficulty)
+    )
+    if puzzle is None:
+        raise APIError(
+            "puzzle_unavailable",
+            "There is no puzzle of that difficulty today.",
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    existing = _game_of(db, user, puzzle)
+    if existing is not None:
+        raise _already_exists(existing)
+
+    game = GameSession(
+        user_id=user.id,
+        puzzle_id=puzzle.id,
+        state=puzzle.givens,
+        started_at=now,  # the official clock starts here (D2)
+        last_activity_at=now,
+    )
+    try:
+        db.add(game)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        winner = _game_of(db, user, puzzle)
+        if winner is None:  # not the race: some other constraint, a real error
+            raise
+        raise _already_exists(winner) from None
+    return game, puzzle
+
+
+def _game_of(db: Session, user: User, puzzle: Puzzle) -> GameSession | None:
+    return db.scalar(
+        select(GameSession).where(
+            GameSession.user_id == user.id, GameSession.puzzle_id == puzzle.id
+        )
+    )
+
+
+def _already_exists(game: GameSession) -> APIError:
+    return APIError(
+        "game_already_exists",
+        "You have already started this puzzle.",
+        status.HTTP_409_CONFLICT,
+        extra={"game_id": str(game.id)},
+    )

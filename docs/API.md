@@ -150,9 +150,16 @@ The home page's data. **Never returns cells** (Q13).
       "puzzles": [
         { "difficulty": "easy",   "status": "completed",
           "game_id": "…", "official_seconds": 412, "active_seconds": 388 },
-        { "difficulty": "medium", "status": "in_progress", "game_id": "…" },
-        { "difficulty": "hard",   "status": "not_started", "game_id": null }
+        { "difficulty": "medium", "status": "in_progress", "game_id": "…",
+          "official_seconds": null, "active_seconds": null },
+        { "difficulty": "hard",   "status": "not_started", "game_id": null,
+          "official_seconds": null, "active_seconds": null }
       ] }
+
+Every entry carries all five fields; the two times are `null` until the game
+is completed. A difficulty with no puzzle generated for today is left out of
+the list rather than shown unplayable (`POST /api/games` would answer `503`).
+"Today" is the Berlin day (D1).
 
 `status` is `not_started`, `in_progress`, `completed` or `closed`. `closed`
 appears when a session was killed by the rollover rule (D6) — the user gets no
@@ -181,7 +188,7 @@ only moment a puzzle becomes visible, and it is the moment `started_at` is set
 
 | Condition | Response |
 |---|---|
-| A session already exists | `409 game_already_exists` with `game_id`, so the client can resume |
+| A session already exists | `409 game_already_exists`, with `game_id` inside `error`, so the client can resume |
 | No puzzle generated for today | `503 puzzle_unavailable` (Q11) |
 | Unknown difficulty | `422` |
 
