@@ -54,6 +54,7 @@ def test_today_lists_the_three_difficulties_not_started(signed_in: TestClient, w
             }
             for d in ("easy", "medium", "hard")
         ],
+        "continuing": [],
     }
 
 
@@ -124,6 +125,122 @@ def test_a_difficulty_without_a_puzzle_today_is_left_out(
     _puzzle(db, DAY, "easy")
 
     assert [p["difficulty"] for p in signed_in.get(TODAY).json()["puzzles"]] == ["easy"]
+
+
+# --- continuing: yesterday's game, still open after midnight (GAME_RULES.md §3) ----------
+
+BERLIN_MIDNIGHT = datetime(2026, 10, 24, 22, 0, tzinfo=clock.UTC)  # 00:00 on the 25th
+
+
+def _yesterdays_game(db: Session, client: TestClient, last_contact: datetime) -> str:
+    """Today's (the 24th's) Hard, started at 23:30 and last touched at ``last_contact``."""
+    game_id = _start(client, "hard").json()["game_id"]
+    game = db.get(GameSession, game_id)
+    assert game is not None
+    game.last_activity_at = last_contact
+    db.commit()
+    assert isinstance(game_id, str)
+    return game_id
+
+
+def test_back_after_midnight_the_open_game_is_listed(
+    db: Session, signed_in: TestClient, week: dict, fixed_clock: Callable[[datetime], None]
+) -> None:
+    # The tab closed at 23:58; the home page reopened at 00:05: seven idle minutes.
+    game_id = _yesterdays_game(db, signed_in, BERLIN_MIDNIGHT - timedelta(minutes=2))
+    fixed_clock(BERLIN_MIDNIGHT + timedelta(minutes=5))
+
+    body = signed_in.get(TODAY).json()
+
+    assert body["date"] == "2026-10-25"
+    assert body["continuing"] == [{"game_id": game_id, "difficulty": "hard", "date": "2026-10-24"}]
+    assert [p["status"] for p in body["puzzles"]] == ["not_started"] * 3  # the 25th's own
+
+
+def test_before_midnight_nothing_is_continuing(signed_in: TestClient, week: dict) -> None:
+    _start(signed_in, "hard")
+
+    assert signed_in.get(TODAY).json()["continuing"] == []
+
+
+@pytest.mark.parametrize(
+    ("last_contact", "now"),
+    [
+        # Idle for 16 minutes: closed.
+        (BERLIN_MIDNIGHT - timedelta(minutes=2), BERLIN_MIDNIGHT + timedelta(minutes=14)),
+        # Played until a second before 02:00: closed at 02:00 regardless.
+        (
+            BERLIN_MIDNIGHT + timedelta(hours=1, minutes=59, seconds=59),
+            BERLIN_MIDNIGHT + timedelta(hours=2),
+        ),
+    ],
+    ids=["idle", "past 02:00"],
+)
+def test_a_closed_game_is_not_continuing(
+    db: Session,
+    signed_in: TestClient,
+    week: dict,
+    fixed_clock: Callable[[datetime], None],
+    last_contact: datetime,
+    now: datetime,
+) -> None:
+    _yesterdays_game(db, signed_in, last_contact)
+    fixed_clock(now)
+
+    assert signed_in.get(TODAY).json()["continuing"] == []
+
+
+def test_a_completed_game_is_not_continuing(
+    db: Session, signed_in: TestClient, week: dict, fixed_clock: Callable[[datetime], None]
+) -> None:
+    game_id = _yesterdays_game(db, signed_in, BERLIN_MIDNIGHT - timedelta(minutes=2))
+    game = db.get(GameSession, game_id)
+    assert game is not None
+    game.completed_at = BERLIN_MIDNIGHT - timedelta(minutes=2)
+    db.commit()
+    fixed_clock(BERLIN_MIDNIGHT + timedelta(minutes=5))
+
+    assert signed_in.get(TODAY).json()["continuing"] == []
+
+
+def test_someone_elses_open_game_is_not_continuing(
+    db: Session,
+    db_client: TestClient,
+    user: User,
+    week: dict,
+    fixed_clock: Callable[[datetime], None],
+) -> None:
+    sign_in(db_client, db, _other_user(db))
+    _yesterdays_game(db, db_client, BERLIN_MIDNIGHT - timedelta(minutes=2))
+    fixed_clock(BERLIN_MIDNIGHT + timedelta(minutes=5))
+
+    sign_in(db_client, db, user)
+    assert db_client.get(TODAY).json()["continuing"] == []
+
+
+def test_yesterdays_game_and_todays_can_be_held_at_once(
+    db: Session, signed_in: TestClient, week: dict, fixed_clock: Callable[[datetime], None]
+) -> None:
+    # GAME_RULES.md §3: a continuing past-day session and today's puzzle are
+    # different puzzles and do not conflict.
+    yesterdays = _yesterdays_game(db, signed_in, BERLIN_MIDNIGHT - timedelta(minutes=2))
+    fixed_clock(BERLIN_MIDNIGHT + timedelta(minutes=5))
+
+    todays = _start(signed_in, "hard")
+
+    assert todays.status_code == 201
+    assert todays.json()["date"] == "2026-10-25"
+    body = signed_in.get(TODAY).json()
+    assert body["continuing"][0]["game_id"] == yesterdays
+    assert body["puzzles"][2] | {"game_id": None} == {
+        "difficulty": "hard",
+        "status": "in_progress",
+        "game_id": None,
+        "official_seconds": None,
+        "active_seconds": None,
+    }
+    assert body["puzzles"][2]["game_id"] == todays.json()["game_id"] != yesterdays
+    assert GIVENS not in signed_in.get(TODAY).text  # still never a cell
 
 
 # --- POST /api/games ---------------------------------------------------------------------------

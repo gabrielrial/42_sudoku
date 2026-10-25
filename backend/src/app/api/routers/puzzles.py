@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_user
 from app.config import Settings, get_settings
 from app.database.conf.dependencies import get_db
 from app.database.models.users import User
-from app.database.schema.games import Today, TodayPuzzle
+from app.database.schema.games import ContinuingGame, Today, TodayPuzzle
 from app.services.game_status import Thresholds
 from app.services.games import todays_puzzles
 
@@ -22,8 +22,10 @@ def today(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> Today:
     """The home page's data: today's difficulties and the caller's status on
-    each. Never a cell (Q13)."""
-    day, entries = todays_puzzles(db, user, clock.now(), Thresholds.from_settings(settings))
+    each, and any game of an earlier day still open. Never a cell (Q13)."""
+    day, entries, continuing = todays_puzzles(
+        db, user, clock.now(), Thresholds.from_settings(settings)
+    )
     return Today(
         date=day,
         puzzles=[
@@ -35,5 +37,9 @@ def today(
                 active_seconds=e.active_seconds,
             )
             for e in entries
+        ],
+        continuing=[
+            ContinuingGame(game_id=c.game_id, difficulty=c.difficulty, date=c.date)
+            for c in continuing
         ],
     )

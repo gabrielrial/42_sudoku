@@ -154,6 +154,9 @@ The home page's data. **Never returns cells** (Q13).
           "official_seconds": null, "active_seconds": null },
         { "difficulty": "hard",   "status": "not_started", "game_id": null,
           "official_seconds": null, "active_seconds": null }
+      ],
+      "continuing": [
+        { "game_id": "…", "difficulty": "hard", "date": "2026-09-08" }
       ] }
 
 Every entry carries all five fields; the two times are `null` until the game
@@ -161,9 +164,16 @@ is completed. A difficulty with no puzzle generated for today is left out of
 the list rather than shown unplayable (`POST /api/games` would answer `503`).
 "Today" is the Berlin day (D1).
 
-`status` is `not_started`, `in_progress`, `completed` or `closed`. `closed`
-appears when a session was killed by the rollover rule (D6) — the user gets no
-second attempt, so the interface must say so rather than offering "Play".
+`status` is `not_started`, `in_progress` or `completed`. It is never `closed`:
+a game of today's puzzle cannot be closed by the rollover, which only ever
+closes a game of an earlier day.
+
+`continuing` lists the caller's games of earlier days that are still open — a
+game played past midnight, not yet idle for 15 minutes, before 02:00 (D6, Q1).
+Without it, a player who closed the tab at 23:58 and came back at 00:05 could
+not find a game they may still finish. It is usually empty, never holds more
+than yesterday's games, and carries no cells: those come from
+`GET /api/games/{id}`, which answers `410` once the game has closed.
 
 That there is no `GET /api/puzzles/{id}` is deliberate: nothing outside a game
 should be able to address a puzzle at all.

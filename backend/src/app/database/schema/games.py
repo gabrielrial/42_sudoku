@@ -11,7 +11,8 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, StrictInt
 
 Difficulty = Literal["easy", "medium", "hard"]
-TodayStatus = Literal["not_started", "in_progress", "completed", "closed"]
+TodayStatus = Literal["not_started", "in_progress", "completed"]
+"""Never "closed": a game of today's puzzle cannot be closed by the rollover."""
 
 
 class TodayPuzzle(BaseModel):
@@ -26,9 +27,19 @@ class TodayPuzzle(BaseModel):
     """Completed games only: the advisory active time (D10)."""
 
 
+class ContinuingGame(BaseModel):
+    """A game of an earlier day, still open: played past midnight, not yet
+    closed (GAME_RULES.md §3). Never its cells: those come from resuming it."""
+
+    game_id: uuid.UUID
+    difficulty: Difficulty
+    date: date
+
+
 class Today(BaseModel):
     date: date
     puzzles: list[TodayPuzzle]
+    continuing: list[ContinuingGame]
 
 
 class NewGame(BaseModel):

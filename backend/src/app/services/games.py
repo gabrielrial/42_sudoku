@@ -43,11 +43,23 @@ def official_seconds(game: GameSession) -> int | None:
     return int(seconds_between(game.started_at, game.completed_at))
 
 
+@dataclass(frozen=True)
+class ContinuingEntry:
+    game_id: uuid.UUID
+    difficulty: str
+    date: date
+
+
 def todays_puzzles(
     db: Session, user: User, now: datetime, thresholds: Thresholds
-) -> tuple[date, list[TodayEntry]]:
-    """Today's difficulties and where the caller stands on each. A difficulty
-    with no puzzle generated for today is left out (``API.md``)."""
+) -> tuple[date, list[TodayEntry], list[ContinuingEntry]]:
+    """Today's difficulties and where the caller stands on each, plus the
+    caller's games of earlier days that are still open.
+
+    A difficulty with no puzzle generated for today is left out (``API.md``). A
+    game of today's puzzle is never closed, so today's entries are never
+    ``closed`` either.
+    """
     day = today(now)
     rows = db.execute(select(Puzzle.id, Puzzle.difficulty).where(Puzzle.puzzle_date == day)).all()
     puzzle_ids = {difficulty: puzzle_id for puzzle_id, difficulty in rows}
@@ -85,7 +97,41 @@ def todays_puzzles(
                 game.active_seconds if completed else None,
             )
         )
-    return day, entries
+    return day, entries, _continuing(db, user, day, now, thresholds)
+
+
+def _continuing(
+    db: Session, user: User, day: date, now: datetime, thresholds: Thresholds
+) -> list[ContinuingEntry]:
+    """The caller's games of earlier days still in progress: played past midnight
+    and not yet closed by the rollover (GAME_RULES.md §3). Without this, a
+    player who closed the tab at 23:58 and came back at 00:05 could not find
+    their game, though it may still be finished."""
+    rows = db.execute(
+        select(GameSession, Puzzle.puzzle_date, Puzzle.difficulty)
+        .join(Puzzle, Puzzle.id == GameSession.puzzle_id)
+        .where(
+            GameSession.user_id == user.id,
+            GameSession.completed_at.is_(None),
+            Puzzle.puzzle_date < day,
+            # Only recent contact can still be open; keeps the query small.
+            GameSession.last_activity_at >= now - thresholds.inactivity,
+        )
+        .order_by(Puzzle.puzzle_date)
+    ).all()
+    open_games = [
+        ContinuingEntry(game.id, difficulty, puzzle_date)
+        for game, puzzle_date, difficulty in rows
+        if session_status(
+            puzzle_date=puzzle_date,
+            completed_at=game.completed_at,
+            last_activity_at=game.last_activity_at,
+            now=now,
+            thresholds=thresholds,
+        )
+        is Status.IN_PROGRESS
+    ]
+    return sorted(open_games, key=lambda g: (g.date, DIFFICULTIES.index(g.difficulty)))
 
 
 def start_game(
