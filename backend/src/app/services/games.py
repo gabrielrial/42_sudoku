@@ -19,7 +19,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.clock import today
+from app.clock import seconds_between, today
 from app.database.models.game_sessions import GameSession
 from app.database.models.puzzles import DIFFICULTIES, Puzzle, PuzzleSolution
 from app.database.models.users import User
@@ -40,7 +40,7 @@ def official_seconds(game: GameSession) -> int | None:
     """``completed_at - started_at`` in whole seconds (D2); ``None`` until completed."""
     if game.completed_at is None:
         return None
-    return int((game.completed_at - game.started_at).total_seconds())
+    return int(seconds_between(game.started_at, game.completed_at))
 
 
 def todays_puzzles(
@@ -253,9 +253,9 @@ def _open(owned: OwnedGame) -> GameSession:
 def _touch(game: GameSession, now: datetime, gap: timedelta) -> None:
     """Record a contact. The time since the previous one counts as active time
     when it is short enough to be play rather than absence (D10)."""
-    delta = now - game.last_activity_at
-    if timedelta(0) < delta <= gap:
-        game.active_seconds += round(delta.total_seconds())
+    delta = seconds_between(game.last_activity_at, now)
+    if 0 < delta <= gap.total_seconds():
+        game.active_seconds += round(delta)
     game.last_activity_at = max(now, game.last_activity_at)
 
 

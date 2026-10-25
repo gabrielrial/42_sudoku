@@ -20,6 +20,15 @@ def now() -> datetime:
     return datetime.now(tz=UTC)
 
 
+def seconds_between(start: datetime, end: datetime) -> float:
+    """Real elapsed seconds from ``start`` to ``end``, whatever zone each carries.
+
+    Not ``end - start``: Python subtracts two datetimes that share a zone as
+    wall-clock times, so across a clock change the result is an hour off.
+    """
+    return end.timestamp() - start.timestamp()
+
+
 def today(at: datetime | None = None) -> date:
     """The Europe/Berlin calendar day that ``at`` (default: now) falls on."""
     return (at or now()).astimezone(APP_TZ).date()

@@ -56,14 +56,13 @@ _HOW_TO_FIX = (
 
 @pytest.fixture(scope="session")
 def db_engine() -> Iterator[Engine]:
-    from sqlalchemy import create_engine
     from sqlalchemy.exc import OperationalError
 
     import app.database.models  # noqa: F401  (registers every table in Base.metadata)
     from app.config import get_settings
-    from app.database.conf.alch_conf import Base
+    from app.database.conf.alch_conf import Base, make_engine
 
-    engine = create_engine(get_settings().database_url)
+    engine = make_engine(get_settings().database_url)  # as the application's: UTC
     name = engine.url.database or ""
     if not name.endswith("_test"):
         pytest.fail(

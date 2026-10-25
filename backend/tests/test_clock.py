@@ -8,7 +8,7 @@ they are tested explicitly rather than trusted.
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from app.clock import UTC, day_end, day_start, rollover_deadline, today
+from app.clock import UTC, day_end, day_start, rollover_deadline, seconds_between, today
 
 TWO_HOURS = timedelta(hours=2)  # Q1's grace, which the settings hold
 
@@ -59,3 +59,12 @@ def test_rollover_deadline_across_spring_forward():
     # two hours of real elapsed time after midnight.
     day = date(2026, 3, 28)
     assert rollover_deadline(day, TWO_HOURS) - day_end(day) == timedelta(hours=2)
+
+
+def test_seconds_between_is_real_time_across_the_autumn_change():
+    # 01:30 CEST and 02:30 CET on 25 October 2026: two real hours apart.
+    start = datetime(2026, 10, 24, 23, 30, tzinfo=UTC).astimezone(BERLIN)
+    end = datetime(2026, 10, 25, 1, 30, tzinfo=UTC).astimezone(BERLIN)
+    assert end - start == timedelta(hours=1)  # the trap: same zone, wall-clock arithmetic
+
+    assert seconds_between(start, end) == 2 * 3600
