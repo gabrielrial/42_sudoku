@@ -6,11 +6,13 @@ from app.errors import APIError
 from app.services.rate_limit import RateLimiter
 
 
-def limit_login_attempts(request: Request) -> None:
-    """Per-IP limit on login attempts; 429 once the bucket is empty."""
+def take_login_attempt(request: Request) -> bool:
+    """One login attempt from the caller's IP (D5); ``False`` once its bucket is
+    empty. The caller answers the refusal: ``/login`` is reached by navigation,
+    so it redirects rather than answering ``429`` (D23)."""
     limiter: RateLimiter = request.app.state.login_limiter
     ip = request.client.host if request.client else "unknown"
-    enforce(limiter, ip, "Too many login attempts. Try again later.")
+    return limiter.allow(ip)
 
 
 def enforce(limiter: RateLimiter, key: str, message: str) -> None:

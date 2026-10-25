@@ -284,6 +284,17 @@ Decided 2026-10-24, before Phase 5.
   seconds on its own, so inputs 0.6 s apart could add up past the wall clock;
   on completion `active_seconds` is capped at `official_seconds`.
 
+### D23 — `/login` over its limit redirects, never answers `429`
+Decided 2026-10-25, at the start of Stage 6 (was `PLAN.md` P10).
+
+A browser reaches `GET /api/auth/login` by navigation, not `fetch`, so a JSON
+`429` would be shown to the user as raw text. Over the limit, `/login` answers
+`302` to `FRONTEND_ORIGIN/?login_error=too_many_requests`, the way the callback
+reports its failures, and the front end shows the message. The limit itself
+(D5) is unchanged, and the check comes before any work: a refused attempt
+stores no `state` and sets no cookie. No `Retry-After`: after a redirect there
+is nobody to read it, and the message says to wait a minute.
+
 ### Q1 — The activity rule behind D6 (answered)
 
 | Parameter | Value |

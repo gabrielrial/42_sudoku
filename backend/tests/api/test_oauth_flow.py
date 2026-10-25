@@ -379,9 +379,10 @@ def test_a_login_42_reassigned_moves_to_the_newcomer(
     assert [str(r.url) for r in fortytwo.requests][-1].endswith("/v2/users/111")
 
 
-# --- the login rate limit (D5) ------------------------------------------------------
-# The limiter itself is tested in test_login_rate_limit.py; this only says that
-# /login is behind it. Each test client builds its own app, so its own limiter.
+# --- the login rate limit (D5, D23) -------------------------------------------------
+# The limit is tested in test_login_rate_limit.py with the fake provider; this
+# says the real one is behind it too, and is never called for a refused attempt.
+# Each test client builds its own app, so its own limiter.
 
 
 def test_login_is_limited_per_ip(
@@ -394,9 +395,10 @@ def test_login_is_limited_per_ip(
 
     response = db_client.get(LOGIN, follow_redirects=False)
 
-    assert response.status_code == 429
-    assert response.json()["error"]["code"] == "too_many_requests"
-    assert int(response.headers["retry-after"]) > 0
+    assert response.status_code == 302
+    assert response.headers["location"] == (
+        f"{get_settings().frontend_origin}/?login_error=too_many_requests"
+    )
     assert OAUTH_STATE_COOKIE not in set_cookies(response)
     # Refused before any work: no state is created for a refused attempt.
     assert db.scalar(select(func.count()).select_from(OAuthState)) == states_before

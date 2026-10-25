@@ -260,7 +260,7 @@ New, numbered `P` so they cannot collide with `DECISIONS.md`:
 | P7 | Front-end tests with vitest, or none | Stage 6 | vitest |
 | ~~P8~~ | ~~Source for published puzzles~~ | Stage 3 | **Answered 2026-10-22: SudokuWiki's solver** (`DIFFICULTY.md`, verification) |
 | P9 | Delete merged branches | any time | developer's call |
-| P10 | `/login` over its limit answers a JSON `429`, which a browser shows raw; or redirect to `/?login_error=too_many_requests` like the callback | Stage 6 | redirect |
+| ~~P10~~ | ~~`/login` over its limit answers a JSON `429`, which a browser shows raw; or redirect to `/?login_error=too_many_requests` like the callback~~ | Stage 6 | **Answered 2026-10-25: redirect** — D23 |
 
 ## Inputs wanted from the developer
 
