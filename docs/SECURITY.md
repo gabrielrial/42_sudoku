@@ -24,9 +24,13 @@ Therefore:
   is constant-time (`secrets.compare_digest`): an ordinary one stops at the
   first difference, and its timing would hint at how many leading cells are
   right.
-- `tests/api/test_no_solution_leaks.py` walks every game endpoint, in every
-  outcome reachable before the solve, and fails if the solution appears in any
-  answer.
+- `tests/api/test_no_solution_leaks.py` walks every game endpoint before the
+  solve, through success and every refusal — 404 (no such game, someone
+  else's), 409, 410, 422 and 429 — and checks each answer three ways: its
+  status is the one the walk expects, so no part of the walk silently failed;
+  the solution does not appear in it; and every JSON key is one the API
+  defines. That last check is what catches a partial leak: a careless field —
+  a hint, a count of right cells — fails by being there, whatever it carries.
 
 Immediate feedback for the player, if wanted, is computed client-side from the
 Sudoku rules alone: highlighting duplicate values in a row, column or box. That
