@@ -32,7 +32,9 @@ def create_app() -> FastAPI:
         refill_per_second=settings.login_attempts_per_minute / 60,
     )
     # Per game session, never per IP: a whole campus may share one address (D5).
-    app.state.input_limiter = RateLimiter(capacity=settings.game_input_burst, refill_per_second=1)
+    app.state.input_limiter = RateLimiter(
+        capacity=settings.game_input_burst, refill_per_second=settings.game_inputs_per_second
+    )
     app.state.heartbeat_limiter = RateLimiter(
         capacity=settings.game_heartbeats_per_minute,
         refill_per_second=settings.game_heartbeats_per_minute / 60,

@@ -16,6 +16,7 @@ from httpx import Response
 from sqlalchemy import event
 from sqlalchemy.orm import Session
 
+from app import clock
 from app.database.models.game_sessions import GameSession
 from app.database.models.users import User
 from app.services.rate_limit import RateLimiter
@@ -363,3 +364,48 @@ def test_the_limits_are_d22s_by_default(signed_in: TestClient) -> None:
     assert isinstance(app, FastAPI)
     assert (app.state.input_limiter.capacity, app.state.input_limiter.refill_per_second) == (10, 1)
     assert app.state.heartbeat_limiter.capacity == 2
+
+
+# --- the instant a request is judged at: after the lock, not before (review M4) ----------
+
+
+def test_writes_read_the_clock_after_taking_the_lock(
+    db: Session, signed_in: TestClient, game_id: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A request that waits behind another on the row lock must be judged at the
+    # time it proceeds. Recorded as one timeline: SQL statements and clock reads.
+    timeline: list[str] = []
+
+    def record(_conn: object, _cursor: object, statement: str, *_: object) -> None:
+        timeline.append("lock" if "FOR UPDATE" in statement else "sql")
+
+    connection = db.connection()
+    event.listen(connection, "before_cursor_execute", record)
+    monkeypatch.setattr(clock, "now", lambda: timeline.append("clock") or NOW)
+    game = _stored(db, game_id)
+    game.state = SOLUTION
+    db.commit()
+    requests = {
+        "input": lambda: _put(signed_in, game_id, EMPTY, RIGHT),
+        "heartbeat": lambda: _beat(signed_in, game_id),
+        "complete": lambda: signed_in.post(f"{GAMES}/{game_id}/complete"),
+    }
+    try:
+        for name, send in requests.items():
+            timeline.clear()
+            assert send().status_code in (200, 204), name
+            assert "lock" in timeline, name
+            assert "clock" in timeline, name
+            assert timeline.index("clock") > timeline.index("lock"), f"{name}: {timeline}"
+    finally:
+        event.remove(connection, "before_cursor_execute", record)
+
+
+def test_the_input_refill_rate_is_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import main
+    from app.config import get_settings
+
+    settings = get_settings().model_copy(update={"game_inputs_per_second": 2.0})
+    monkeypatch.setattr(main, "get_settings", lambda: settings)
+
+    assert main.create_app().state.input_limiter.refill_per_second == 2.0

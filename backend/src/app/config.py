@@ -42,8 +42,9 @@ class Settings(BaseSettings):
     game_rollover_grace_minutes: int = 120
     # A gap between two contacts longer than this is idleness, not play (API.md).
     game_active_gap_seconds: int = 90
-    # Cell inputs per game session: a burst of this many, then one a second (D22).
+    # Cell inputs per game session: a burst of this many, refilled at this rate (D22).
     game_input_burst: int = 10
+    game_inputs_per_second: float = 1.0
     # Per game session too (D5).
     game_heartbeats_per_minute: int = 2
     game_completions_per_minute: int = 5

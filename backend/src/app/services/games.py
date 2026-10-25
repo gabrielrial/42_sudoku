@@ -11,6 +11,7 @@ for another day's puzzle at all.
 
 import secrets
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -201,13 +202,16 @@ class OwnedGame:
     game: GameSession
     puzzle: Puzzle
     status: Status
+    now: datetime
+    """The instant the game was judged at: read once the row was in hand, so
+    after any wait for its lock. Writes on this game use this same instant."""
 
 
 def owned_game(
     db: Session,
     user: User,
     game_id: str,
-    now: datetime,
+    now: Callable[[], datetime],
     thresholds: Thresholds,
     *,
     for_update: bool = False,
@@ -219,6 +223,11 @@ def owned_game(
     (``API.md``, Authorisation). ``410 game_closed`` when the rollover closed it.
     ``for_update`` locks the row until the caller's commit, so two requests on
     one game take turns instead of overwriting each other.
+
+    ``now`` is a clock, not an instant: it is read after the row arrives. A
+    request that waited behind another on the lock is then judged at the time
+    it actually proceeds, not the time it arrived — a request that arrived at
+    01:59:59.9 and got the row at 02:00:00.1 finds the game closed.
     """
     try:
         key = uuid.UUID(game_id)
@@ -235,11 +244,12 @@ def owned_game(
     if row is None:
         raise _not_found()
     game, puzzle = row
+    instant = now()
     game_status = session_status(
         puzzle_date=puzzle.puzzle_date,
         completed_at=game.completed_at,
         last_activity_at=game.last_activity_at,
-        now=now,
+        now=instant,
         thresholds=thresholds,
     )
     if game_status is Status.CLOSED:
@@ -248,7 +258,7 @@ def owned_game(
             "This game was closed when its day ended.",
             status.HTTP_410_GONE,
         )
-    return OwnedGame(game, puzzle, game_status)
+    return OwnedGame(game, puzzle, game_status, instant)
 
 
 def _not_found() -> APIError:
