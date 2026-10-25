@@ -133,7 +133,11 @@ def test_a_right_and_a_wrong_digit_get_the_same_answer(signed_in: TestClient, ga
 
     assert right.status_code == wrong.status_code == 204
     assert right.content == wrong.content == b""
-    assert {k for k in right.headers if k != "date"} == {k for k in wrong.headers if k != "date"}
+
+    def headers(r: Response) -> dict[str, str]:
+        return {k: v for k, v in r.headers.items() if k != "date"}
+
+    assert headers(right) == headers(wrong)  # names and values
 
 
 def test_playing_never_reads_the_solution(
@@ -146,11 +150,30 @@ def test_playing_never_reads_the_solution(
     assert not [s for s in statements if "puzzle_solutions" in s]
 
 
-def test_an_input_locks_its_game_row(
-    signed_in: TestClient, game_id: str, statements: list[str]
+WRITES: dict[str, Callable[[TestClient, str], Response]] = {
+    "input": lambda c, g: _put(c, g, EMPTY, 4),
+    "heartbeat": _beat,
+    "complete": lambda c, g: c.post(f"{GAMES}/{g}/complete"),
+}
+
+
+@pytest.mark.parametrize("send", WRITES.values(), ids=WRITES.keys())
+def test_every_write_locks_its_game_row(
+    db: Session,
+    signed_in: TestClient,
+    game_id: str,
+    statements: list[str],
+    send: Callable[[TestClient, str], Response],
 ) -> None:
-    # Two inputs at once take turns: neither can overwrite the other's cell.
-    _put(signed_in, game_id, EMPTY, 4)
+    # Two requests on one game take turns. Without the lock, two correct
+    # submissions at once would both count, and the second would move
+    # completed_at; two inputs could overwrite each other's cell.
+    game = _stored(db, game_id)
+    game.state = SOLUTION  # so that complete gets as far as checking
+    db.commit()
+    statements.clear()
+
+    assert send(signed_in, game_id).status_code in (200, 204)
 
     assert [s for s in statements if "FOR UPDATE OF game_sessions" in s]
 
@@ -359,11 +382,24 @@ def test_two_heartbeats_a_minute(signed_in: TestClient, game_id: str) -> None:
     assert response.headers["retry-after"] == "30"
 
 
-def test_the_limits_are_d22s_by_default(signed_in: TestClient) -> None:
+@pytest.mark.parametrize(
+    ("limiter", "capacity", "per_minute"),
+    [
+        ("input_limiter", 10, 60),  # D22: a burst of 10, one a second
+        ("heartbeat_limiter", 2, 2),  # D5
+        ("completion_limiter", 5, 5),  # D5: the brute-force path
+        ("login_limiter", 5, 5),  # D5
+    ],
+)
+def test_every_limit_has_its_decided_default(
+    signed_in: TestClient, limiter: str, capacity: int, per_minute: int
+) -> None:
     app = signed_in.app
     assert isinstance(app, FastAPI)
-    assert (app.state.input_limiter.capacity, app.state.input_limiter.refill_per_second) == (10, 1)
-    assert app.state.heartbeat_limiter.capacity == 2
+    bucket = getattr(app.state, limiter)
+
+    assert bucket.capacity == capacity
+    assert bucket.refill_per_second * 60 == pytest.approx(per_minute)
 
 
 # --- the instant a request is judged at: after the lock, not before (review M4) ----------
@@ -409,3 +445,49 @@ def test_the_input_refill_rate_is_configuration(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(main, "get_settings", lambda: settings)
 
     assert main.create_app().state.input_limiter.refill_per_second == 2.0
+
+
+# --- the clock going backwards (review S4) ---------------------------------------------------
+
+
+def test_a_contact_older_than_the_last_one_changes_no_time(
+    db: Session, signed_in: TestClient, game_id: str, fixed_clock: Callable[[datetime], None]
+) -> None:
+    # Happens for real: a request reads the clock, then the one ahead of it on
+    # the lock writes a later last_activity_at. Neither negative active time nor
+    # last_activity_at moving back may follow.
+    later = NOW + timedelta(seconds=10)
+    game = _stored(db, game_id)
+    game.last_activity_at = later
+    db.commit()
+    _at(fixed_clock, seconds=5)
+
+    assert _put(signed_in, game_id, EMPTY, 4).status_code == 204
+
+    game = _stored(db, game_id)
+    assert game.active_seconds == 0
+    assert game.last_activity_at == later
+
+
+# --- signed in, and a well-formed id, on every write (review M7) ----------------------------
+
+
+@pytest.mark.parametrize("send", WRITES.values(), ids=WRITES.keys())
+def test_every_write_needs_a_session(
+    db_client: TestClient, send: Callable[[TestClient, str], Response]
+) -> None:
+    response = send(db_client, str(uuid.uuid4()))
+
+    assert response.status_code == 401
+    assert error_code(response) == "not_authenticated"
+
+
+@pytest.mark.parametrize("bad_id", ["not-a-uuid", "1", "' OR 1=1 --"])
+@pytest.mark.parametrize("send", WRITES.values(), ids=WRITES.keys())
+def test_every_write_answers_404_for_a_malformed_id(
+    signed_in: TestClient, send: Callable[[TestClient, str], Response], bad_id: str
+) -> None:
+    response = send(signed_in, bad_id)
+
+    assert response.status_code == 404
+    assert error_code(response) == "game_not_found"
