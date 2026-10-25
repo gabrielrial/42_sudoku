@@ -66,11 +66,12 @@ A session is tied to the day it belongs to. After the rollover:
 ### What "active" means
 
 The server cannot see whether a browser tab is open. Activity is defined by
-recent communication with the server — game inputs and/or a periodic heartbeat
-from the client.
+recent communication with the server about the game — inputs, full-grid
+submissions, and a periodic heartbeat from the client. Reading the game
+(loading or resuming it) is not activity: looking is not playing.
 
 The client sends a heartbeat every **60 seconds** while a game is open. Inputs
-count as activity too.
+and submissions count as activity too.
 
 A past-day session is closed when **either** of these is true, whichever comes
 first:
@@ -109,13 +110,17 @@ load-bearing.
   `completed_at - started_at`.
 - An **active time** is recorded alongside it, accumulated from client activity
   with idle gaps excluded. It is advisory only. The official time is the
-  unfalsifiable one; active time is the honest-looking one.
+  unfalsifiable one; active time is the honest-looking one. Active time never
+  exceeds official time (D22).
 - The frontend timer is decoration. It is never trusted, never submitted, and
   never used to compute a stored time.
 - `completed_at` is written only after the backend has verified the submitted
   grid against the stored solution.
-- Completion is explicit: the client submits a full grid. An incorrect
-  submission leaves the game open; the attempt is counted and stored.
+- Completion is explicit: the player asks for the grid to be checked, once all
+  81 cells are filled. What is checked is the grid the server holds — every
+  input already went through it — never a grid sent with the request, which
+  could disagree with it (`LESSONS.md` D). An incorrect submission leaves the
+  game open; the attempt is counted and stored.
 - Only **full-grid submissions** are counted. A wrong digit typed into a cell is
   an ordinary input, is never flagged as wrong (the server does not know or say
   whether a cell is correct), and is never recorded as an error.

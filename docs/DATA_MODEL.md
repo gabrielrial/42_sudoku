@@ -95,25 +95,26 @@ Only the completion check and the generator ever read this table.
 | Column | Type | Notes |
 |---|---|---|
 | `id` | `UUID` | primary key, `gen_random_uuid()`. Exposed in URLs. |
-| `user_id` | `BIGINT NOT NULL` | FK → `users(id)` `ON DELETE CASCADE` |
+| `user_id` | `INTEGER NOT NULL` | FK → `users(id)` `ON DELETE CASCADE`; the type of `users.id` |
 | `puzzle_id` | `BIGINT NOT NULL` | FK → `puzzles(id)` `ON DELETE RESTRICT` |
 | `state` | `CHAR(81) NOT NULL` | current grid; `CHECK (state ~ '^[0-9]{81}$')` |
 | `state_version` | `SMALLINT NOT NULL DEFAULT 1` | format version (Q5) |
 | `started_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | official clock starts here (D2) |
 | `completed_at` | `TIMESTAMPTZ` | set only after verification (D2) |
-| `last_activity_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | inputs and heartbeats |
+| `last_activity_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | inputs, heartbeats and submissions (D22) |
 | `active_seconds` | `INTEGER NOT NULL DEFAULT 0` | server-accumulated (D10) |
-| `submission_count` | `INTEGER NOT NULL DEFAULT 0` | full-grid submissions (Q12) |
-| `closed_at` | `TIMESTAMPTZ` | materialised by the nightly job; advisory |
+| `submission_count` | `INTEGER NOT NULL DEFAULT 0` | full-grid submissions, the correct one included (D22) |
+| `closed_at` | `TIMESTAMPTZ` | materialised by a nightly job for Phase 8; empty in the MVP (D22); advisory |
 
 - `UUID` rather than a serial: session ids appear in URLs, and sequential ids
   invite enumeration. Authorisation blocks it anyway, but there is no reason to
   publish a count of how many games exist.
 - `UNIQUE (user_id, puzzle_id)` — this single constraint enforces D3. One game
   per user per puzzle, forever, no restarts.
-- `INDEX (user_id)` for a user's history.
-- `INDEX (puzzle_id, completed_at)` for the daily leaderboards, ideally partial:
-  `WHERE completed_at IS NOT NULL`.
+- No separate `INDEX (user_id)`: the unique constraint's index starts with
+  `user_id`, so it already serves a user's history.
+- `INDEX (puzzle_id, completed_at) WHERE completed_at IS NOT NULL` for the
+  daily leaderboards (Phase 8), created with the table.
 
 ### Derived status
 

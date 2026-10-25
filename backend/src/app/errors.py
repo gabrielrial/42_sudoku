@@ -24,16 +24,21 @@ class APIError(Exception):
         message: str,
         http_status: int = status.HTTP_400_BAD_REQUEST,
         headers: Mapping[str, str] | None = None,
+        extra: Mapping[str, str] | None = None,
     ):
         super().__init__(message)
         self.code = code
         self.message = message
         self.http_status = http_status
         self.headers = headers
+        self.extra = extra
+        """Fields the client needs beside the code, e.g. the ``game_id`` of a 409."""
 
 
-def _envelope(code: str, message: str) -> dict[str, dict[str, str]]:
-    return {"error": {"code": code, "message": message}}
+def _envelope(
+    code: str, message: str, extra: Mapping[str, str] | None = None
+) -> dict[str, dict[str, str]]:
+    return {"error": {**(extra or {}), "code": code, "message": message}}
 
 
 def register_error_handlers(app: FastAPI) -> None:
@@ -41,7 +46,7 @@ def register_error_handlers(app: FastAPI) -> None:
     async def _api_error(_: Request, exc: APIError) -> JSONResponse:
         return JSONResponse(
             status_code=exc.http_status,
-            content=_envelope(exc.code, exc.message),
+            content=_envelope(exc.code, exc.message, exc.extra),
             headers=exc.headers,
         )
 

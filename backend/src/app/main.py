@@ -6,6 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.csrf import require_frontend_origin
 from app.api.routers import health
 from app.api.routers.auth import router as auth_router
+from app.api.routers.games import router as games_router
+from app.api.routers.puzzles import router as puzzles_router
 from app.api.routers.users import router as user_router
 from app.config import get_settings
 from app.errors import register_error_handlers
@@ -29,6 +31,18 @@ def create_app() -> FastAPI:
         capacity=settings.login_attempts_per_minute,
         refill_per_second=settings.login_attempts_per_minute / 60,
     )
+    # Per game session, never per IP: a whole campus may share one address (D5).
+    app.state.input_limiter = RateLimiter(
+        capacity=settings.game_input_burst, refill_per_second=settings.game_inputs_per_second
+    )
+    app.state.heartbeat_limiter = RateLimiter(
+        capacity=settings.game_heartbeats_per_minute,
+        refill_per_second=settings.game_heartbeats_per_minute / 60,
+    )
+    app.state.completion_limiter = RateLimiter(
+        capacity=settings.game_completions_per_minute,
+        refill_per_second=settings.game_completions_per_minute / 60,
+    )
 
     app.add_middleware(
         CORSMiddleware,
@@ -42,6 +56,8 @@ def create_app() -> FastAPI:
     app.include_router(health.router, prefix="/api")
     app.include_router(user_router, prefix="/api")
     app.include_router(auth_router, prefix="/api")
+    app.include_router(puzzles_router, prefix="/api")
+    app.include_router(games_router, prefix="/api")
 
     return app
 

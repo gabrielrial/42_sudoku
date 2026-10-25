@@ -150,13 +150,32 @@ The home page's data. **Never returns cells** (Q13).
       "puzzles": [
         { "difficulty": "easy",   "status": "completed",
           "game_id": "…", "official_seconds": 412, "active_seconds": 388 },
-        { "difficulty": "medium", "status": "in_progress", "game_id": "…" },
-        { "difficulty": "hard",   "status": "not_started", "game_id": null }
+        { "difficulty": "medium", "status": "in_progress", "game_id": "…",
+          "official_seconds": null, "active_seconds": null },
+        { "difficulty": "hard",   "status": "not_started", "game_id": null,
+          "official_seconds": null, "active_seconds": null }
+      ],
+      "continuing": [
+        { "game_id": "…", "difficulty": "hard", "date": "2026-09-08" }
       ] }
 
-`status` is `not_started`, `in_progress`, `completed` or `closed`. `closed`
-appears when a session was killed by the rollover rule (D6) — the user gets no
-second attempt, so the interface must say so rather than offering "Play".
+Every entry carries all five fields; the two times are `null` until the game
+is completed. A difficulty with no puzzle generated for today is left out of
+the list rather than shown unplayable (`POST /api/games` would answer `503`).
+"Today" is the Berlin day (D1).
+
+`status` is `not_started`, `in_progress` or `completed`. It is never `closed`:
+a game of today's puzzle cannot be closed by the rollover, which only ever
+closes a game of an earlier day.
+
+`continuing` lists the caller's games of earlier days that are still open — a
+game played past midnight, not yet idle for the inactivity window, before the
+grace ends (D6, Q1). Both are settings: 15 minutes (`GAME_INACTIVITY_MINUTES`)
+and 02:00 (`GAME_ROLLOVER_GRACE_MINUTES=120`) by default.
+Without it, a player who closed the tab at 23:58 and came back at 00:05 could
+not find a game they may still finish. It is usually empty, never holds more
+than yesterday's games, and carries no cells: those come from
+`GET /api/games/{id}`, which answers `410` once the game has closed.
 
 That there is no `GET /api/puzzles/{id}` is deliberate: nothing outside a game
 should be able to address a puzzle at all.
@@ -181,7 +200,7 @@ only moment a puzzle becomes visible, and it is the moment `started_at` is set
 
 | Condition | Response |
 |---|---|
-| A session already exists | `409 game_already_exists` with `game_id`, so the client can resume |
+| A session already exists | `409 game_already_exists`, with `game_id` inside `error`, so the client can resume |
 | No puzzle generated for today | `503 puzzle_unavailable` (Q11) |
 | Unknown difficulty | `422` |
 
@@ -202,8 +221,11 @@ Resuming. Returns everything needed to rebuild the board.
 
 | Condition | Response |
 |---|---|
-| Not the caller's game, or no such game | `404 game_not_found` |
+| Not the caller's game, no such game, or an id that is not a UUID | `404 game_not_found`, the same answer in all three cases |
 | Closed by the rollover rule | `410 game_closed` |
+
+Reading a game is not activity: it does not move `last_activity_at`, so it
+cannot keep a past-day game alive. Only inputs, heartbeats and submissions do.
 
 `410 Gone` is the right code and worth the precision: the game existed, the user
 owned it, and it can never be interacted with again.
@@ -219,10 +241,21 @@ Validates **legality only** (`GAME_RULES.md` §3): the game is the caller's and
 open, the cell is not a given, the value is 1–9 or null. It never reveals
 whether the value is correct, and a wrong digit is not recorded anywhere.
 
-Also updates `last_activity_at` and accumulates `active_seconds`.
+Also updates `last_activity_at` and accumulates `active_seconds`, as the
+heartbeat below does. A right and a wrong digit get byte-for-byte the same
+answer, and the request never reads `puzzle_solutions` at all.
+
+`value` must be present: an integer 1–9, or `null`. Nothing is coerced —
+`"7"`, `7.0` and `true` are `422`, like `0` or `10`. The game row is locked for
+the request, so two inputs on one game take turns.
+
+Rate limit (D22): a bucket of 10 per game, refilled at one per second. It is
+taken only once the game is known to be the caller's, so requests on someone
+else's game stop at `404` and cost its owner nothing.
 
 | Condition | Response |
 |---|---|
+| Not the caller's game, or no such game | `404 game_not_found` |
 | Cell is a given | `409 cell_is_given` |
 | Game already completed | `409 game_completed` |
 | Game closed by rollover | `410 game_closed` |
@@ -236,14 +269,23 @@ Also updates `last_activity_at` and accumulates `active_seconds`.
 No body. Says only "the player is here". The server does the arithmetic:
 
     delta = now - last_activity_at
-    if delta <= 90s:  active_seconds += delta      # continuous play
-    else:             active_seconds += 0          # an idle gap
-    last_activity_at = now
+    if 0 < delta <= 90s:  active_seconds += round(delta)   # continuous play
+    else:                 active_seconds += 0              # an idle gap
+    last_activity_at = max(now, last_activity_at)          # never moves back
 
 **Active time is therefore computed by the server, not reported by the client.**
 The client cannot state a duration; it can only prove presence at an instant.
 A script can still hold a session open by heartbeating without playing, but that
 only ever makes a time worse, and the 02:00 cap bounds it regardless (Q1).
+
+Rate limit: two per minute per game (D5). A body, if any, is ignored.
+
+| Condition | Response |
+|---|---|
+| Not the caller's game, or no such game | `404 game_not_found` |
+| Game already completed | `409 game_completed` (D22) |
+| Game closed by rollover | `410 game_closed` |
+| Over the rate limit | `429` |
 
 ### `POST /api/games/{id}/complete`
 
@@ -262,13 +304,29 @@ On success it sets `completed_at` and returns the official time. On failure it
 increments `submission_count` and says nothing about *which* cells are wrong —
 that would be the oracle from `SECURITY.md`.
 
+A submission is activity, like an input (D22): it moves `last_activity_at` and
+adds to active time by the same rule, so a player checking their grid after
+midnight keeps the game open. On success `active_seconds` is capped at
+`official_seconds`: gaps are rounded one by one, and their sum could otherwise
+creep a few seconds past the wall clock.
+
 Idempotent: calling it again on a completed game returns the same result and
-does not move `completed_at` (D13).
+does not move `completed_at` (D13). That repeat is not rate-limited: once the
+grid is right there is nothing left to guess.
+
+Every full-grid submission counts, the correct one included (D22); a grid with
+an empty cell is not a submission and is not counted. A wrong answer is the same
+two fields however many cells are wrong. The comparison runs in constant time,
+so how long it takes says nothing about how much of the grid is right. Anything
+in a request body is ignored.
+
+Rate limit: five per minute per game (D5), taken after ownership.
 
 | Condition | Response |
 |---|---|
+| Not the caller's game, or no such game | `404 game_not_found` |
 | Grid not yet full | `409 grid_incomplete` |
-| Game closed by rollover | `410 game_closed` |
+| Game closed by rollover | `410 game_closed`, however right the grid |
 | Over the rate limit | `429` |
 
 ---

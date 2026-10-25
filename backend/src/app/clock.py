@@ -14,14 +14,19 @@ from zoneinfo import ZoneInfo
 APP_TZ = ZoneInfo("Europe/Berlin")
 UTC = ZoneInfo("UTC")
 
-#: Hours past midnight after which a previous day's session is closed
-#: unconditionally (DECISIONS.md Q1).
-ROLLOVER_GRACE_HOURS = 2
-
 
 def now() -> datetime:
     """The current instant, timezone-aware, in UTC."""
     return datetime.now(tz=UTC)
+
+
+def seconds_between(start: datetime, end: datetime) -> float:
+    """Real elapsed seconds from ``start`` to ``end``, whatever zone each carries.
+
+    Not ``end - start``: Python subtracts two datetimes that share a zone as
+    wall-clock times, so across a clock change the result is an hour off.
+    """
+    return end.timestamp() - start.timestamp()
 
 
 def today(at: datetime | None = None) -> date:
@@ -43,10 +48,12 @@ def day_end(day: date) -> datetime:
     return day_start(day + timedelta(days=1))
 
 
-def rollover_deadline(day: date) -> datetime:
+def rollover_deadline(day: date, grace: timedelta) -> datetime:
     """The hard cutoff for sessions belonging to ``day`` (Q1).
 
-    Two hours after the Berlin midnight that ends ``day``. No session on that
-    date survives past this instant, whatever its activity.
+    ``grace`` after the Berlin midnight that ends ``day`` — two hours, from the
+    settings. No session on that date survives past this instant, whatever its
+    activity. Real elapsed time: on the night summer time starts, two hours
+    after midnight is 03:00 on the wall clock.
     """
-    return day_end(day) + timedelta(hours=ROLLOVER_GRACE_HOURS)
+    return day_end(day) + grace

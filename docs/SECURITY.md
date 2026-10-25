@@ -20,7 +20,19 @@ Therefore:
 - The input endpoint validates **legality**, not **correctness** (see
   `GAME_RULES.md` § 3).
 - Only the full-grid completion endpoint compares against the solution, it
-  returns a single boolean, and it is rate-limited and counted.
+  returns a single boolean, and it is rate-limited and counted. The comparison
+  is constant-time (`secrets.compare_digest`): an ordinary one stops at the
+  first difference, and its timing would hint at how many leading cells are
+  right.
+- `tests/api/test_no_solution_leaks.py` walks every game endpoint before the
+  solve, through success and every refusal — 404 (no such game, someone
+  else's), 409, 410, 422 and 429, and a game still open past midnight — and
+  checks each answer four ways: its status is the one the walk expects, so no
+  part of the walk silently failed; the solution does not appear in it; every
+  JSON key is one the API defines; and every grid in it is one the player
+  already has. The last two catch a partial leak: a careless field — a hint, a
+  count of right cells — fails by being there, whatever it carries, and an
+  allowed one — a `state` with a solved cell filled in — fails by its value.
 
 Immediate feedback for the player, if wanted, is computed client-side from the
 Sudoku rules alone: highlighting duplicate values in a row, column or box. That

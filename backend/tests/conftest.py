@@ -18,6 +18,25 @@ os.environ.setdefault(
 )
 
 
+def _pin_the_declared_defaults() -> None:
+    """Every setting that has a default runs the suite at that default.
+
+    docker-compose hands the container whatever ``.env`` tunes (a longer
+    inactivity window, a bigger input burst), and a local ``.env`` is read
+    too. Tests assert the decided values, so without this a deployment's
+    tuning would turn a correct build red. A test that wants another value
+    says so itself, with ``model_copy``.
+    """
+    from app.config import Settings
+
+    for name, field in Settings.model_fields.items():
+        if not field.is_required():
+            os.environ[name.upper()] = str(field.default)
+
+
+_pin_the_declared_defaults()
+
+
 def _browser_headers() -> dict[str, str]:
     """What the front end's browser sends: state-changing requests need ``Origin``.
 
@@ -56,14 +75,13 @@ _HOW_TO_FIX = (
 
 @pytest.fixture(scope="session")
 def db_engine() -> Iterator[Engine]:
-    from sqlalchemy import create_engine
     from sqlalchemy.exc import OperationalError
 
     import app.database.models  # noqa: F401  (registers every table in Base.metadata)
     from app.config import get_settings
-    from app.database.conf.alch_conf import Base
+    from app.database.conf.alch_conf import Base, make_engine
 
-    engine = create_engine(get_settings().database_url)
+    engine = make_engine(get_settings().database_url)  # as the application's: UTC
     name = engine.url.database or ""
     if not name.endswith("_test"):
         pytest.fail(

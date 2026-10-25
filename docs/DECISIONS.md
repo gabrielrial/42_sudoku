@@ -61,8 +61,8 @@ Across the Europe/Berlin midnight boundary:
 - An **inactive** session is closed permanently and can never be resumed. The
   user plays the new day's puzzle instead.
 
-"Active" means recent communication with the server — inputs and/or a heartbeat.
-The threshold is not yet decided (Q1).
+"Active" means recent communication with the server — inputs, full-grid
+submissions and/or a heartbeat (D22). The threshold is Q1.
 
 ### D7 — Completion counts for the puzzle the game started on
 Started 2026-09-09 23:55, completed 2026-09-10 00:05 → a completion of the
@@ -98,10 +98,12 @@ No campus, staff or activity restriction in the MVP. Campus and account status
 are stored so the policy can be tightened later without a migration.
 
 ### D13 — Completion is explicit, and failures are counted
-The client submits a full grid; the server does not auto-check as cells fill.
-An incorrect submission leaves the game open for further attempts. The count of
-failed attempts is stored. The endpoint is rate-limited per D5, which is what
-stops repeated submission from becoming a slow brute-force channel.
+The player asks for a check once the grid is full; the server does not
+auto-check as cells fill. It checks the grid it already holds, not one sent with
+the request (`LESSONS.md` D). An incorrect submission leaves the game open for
+further attempts. Every submission is counted (`submission_count`, D22). The
+endpoint is rate-limited per D5, which is what stops repeated submission from
+becoming a slow brute-force channel.
 
 ### D14 — Game state is a snapshot, not a move log
 One column on `GameSession` holding the current grid. No `GameMove` table in the
@@ -258,6 +260,30 @@ Fallback, so that one person's stale row never locks another out:
 login it gives is taken here too. Chains of renames are not followed. The stale
 holder's next sign-in replaces the placeholder with the truth.
 
+### D22 — Game API details left open by the documents
+Decided 2026-10-24, before Phase 5.
+
+- **`submission_count` counts every full-grid submission, the correct one
+  included.** A first-time solve is 1, which is what `API.md`'s example shows
+  and what a "Submissions" column should mean to a reader.
+- **Cell inputs: a token bucket of 10, refilled at 1 per second, per game
+  session** (D5's "small burst allowance", made concrete). Someone clearing a
+  cascade of singles types several digits a second; a bucket of 10 lets that
+  through and still holds a script to one input a second over time.
+- **A heartbeat or an input on a completed game answers `409 game_completed`**,
+  as `API.md` already says for inputs. Nothing about a finished game changes.
+- **`game_sessions.closed_at` exists from the first migration and stays empty in
+  the MVP.** The nightly job that fills it serves Phase 8's statistics only;
+  the MVP computes the closed state on read (Q1), which is the only source of
+  truth anyway.
+- **A full-grid submission is activity**, like an input (added 2026-10-25, from
+  the Stage 5 review): pressing "check" is as plainly playing as typing a
+  digit. It moves `last_activity_at` and adds active time. It opens nothing:
+  five submissions a minute at most, and the 02:00 cap holds regardless.
+- **Active time never exceeds official time.** Each gap is rounded to whole
+  seconds on its own, so inputs 0.6 s apart could add up past the wall clock;
+  on completion `active_seconds` is capped at `official_seconds`.
+
 ### Q1 — The activity rule behind D6 (answered)
 
 | Parameter | Value |
@@ -320,19 +346,20 @@ hard, so such a board would mostly measure which day a user played.
 | Also displayed | Active time, as context |
 | Tie-break | Earlier `completed_at` wins |
 | Identity shown | 42 login |
-| Submissions column | Count of full-grid submissions made before completion |
+| Submissions column | Count of full-grid submissions, the correct one included (D22) |
 | Membership | Every user who completes; no opt-out |
 | Own row | Always visible to the user, whatever their rank; boards paginate |
 
 "Submissions" counts **completion attempts** — how many times a player submitted
-a full grid before getting it right — not individual mis-typed cells. Wrong
-digits entered in a cell are never recorded anywhere. Displayed, never ranked on.
+a full grid, the correct one included, so a first-time solve shows 1 — not
+individual mis-typed cells. Wrong digits entered in a cell are never recorded
+anywhere. Displayed, never ranked on.
 
 A day's boards become final at 02:00 the following day, because every session on
 that date is closed by then (D6/Q1). No freeze mechanism is needed.
 
 **Storage impact: none.** `started_at`, `completed_at`, `active_seconds` and
-`failed_attempts` are already on `GameSession`. Phase 8 is queries, indexes and
+`submission_count` are already on `GameSession`. Phase 8 is queries, indexes and
 interface only.
 
 ### Q13 — A puzzle is never visible before its session exists (answered: adopted)

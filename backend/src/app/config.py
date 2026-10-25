@@ -37,6 +37,18 @@ class Settings(BaseSettings):
     # Today and the days after it that always have their puzzles (DECISIONS.md Q11).
     puzzle_days_ahead: int = 7
 
+    # When a game left from an earlier day closes (GAME_RULES.md §3, Q1).
+    game_inactivity_minutes: int = 15
+    game_rollover_grace_minutes: int = 120
+    # A gap between two contacts longer than this is idleness, not play (API.md).
+    game_active_gap_seconds: int = 90
+    # Cell inputs per game session: a burst of this many, refilled at this rate (D22).
+    game_input_burst: int = 10
+    game_inputs_per_second: float = 1.0
+    # Per game session too (D5).
+    game_heartbeats_per_minute: int = 2
+    game_completions_per_minute: int = 5
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
