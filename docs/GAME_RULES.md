@@ -66,11 +66,12 @@ A session is tied to the day it belongs to. After the rollover:
 ### What "active" means
 
 The server cannot see whether a browser tab is open. Activity is defined by
-recent communication with the server — game inputs and/or a periodic heartbeat
-from the client.
+recent communication with the server about the game — inputs, full-grid
+submissions, and a periodic heartbeat from the client. Reading the game
+(loading or resuming it) is not activity: looking is not playing.
 
 The client sends a heartbeat every **60 seconds** while a game is open. Inputs
-count as activity too.
+and submissions count as activity too.
 
 A past-day session is closed when **either** of these is true, whichever comes
 first:
