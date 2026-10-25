@@ -101,7 +101,7 @@ Only the completion check and the generator ever read this table.
 | `state_version` | `SMALLINT NOT NULL DEFAULT 1` | format version (Q5) |
 | `started_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | official clock starts here (D2) |
 | `completed_at` | `TIMESTAMPTZ` | set only after verification (D2) |
-| `last_activity_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | inputs and heartbeats |
+| `last_activity_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | inputs, heartbeats and submissions (D22) |
 | `active_seconds` | `INTEGER NOT NULL DEFAULT 0` | server-accumulated (D10) |
 | `submission_count` | `INTEGER NOT NULL DEFAULT 0` | full-grid submissions, the correct one included (D22) |
 | `closed_at` | `TIMESTAMPTZ` | materialised by a nightly job for Phase 8; empty in the MVP (D22); advisory |

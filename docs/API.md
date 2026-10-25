@@ -223,7 +223,7 @@ Resuming. Returns everything needed to rebuild the board.
 | Closed by the rollover rule | `410 game_closed` |
 
 Reading a game is not activity: it does not move `last_activity_at`, so it
-cannot keep a past-day game alive. Only inputs and heartbeats do.
+cannot keep a past-day game alive. Only inputs, heartbeats and submissions do.
 
 `410 Gone` is the right code and worth the precision: the game existed, the user
 owned it, and it can never be interacted with again.

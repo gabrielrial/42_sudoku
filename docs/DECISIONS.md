@@ -61,8 +61,8 @@ Across the Europe/Berlin midnight boundary:
 - An **inactive** session is closed permanently and can never be resumed. The
   user plays the new day's puzzle instead.
 
-"Active" means recent communication with the server — inputs and/or a heartbeat.
-The threshold is not yet decided (Q1).
+"Active" means recent communication with the server — inputs, full-grid
+submissions and/or a heartbeat (D22). The threshold is Q1.
 
 ### D7 — Completion counts for the puzzle the game started on
 Started 2026-09-09 23:55, completed 2026-09-10 00:05 → a completion of the
@@ -276,6 +276,13 @@ Decided 2026-10-24, before Phase 5.
   the MVP.** The nightly job that fills it serves Phase 8's statistics only;
   the MVP computes the closed state on read (Q1), which is the only source of
   truth anyway.
+- **A full-grid submission is activity**, like an input (added 2026-10-25, from
+  the Stage 5 review): pressing "check" is as plainly playing as typing a
+  digit. It moves `last_activity_at` and adds active time. It opens nothing:
+  five submissions a minute at most, and the 02:00 cap holds regardless.
+- **Active time never exceeds official time.** Each gap is rounded to whole
+  seconds on its own, so inputs 0.6 s apart could add up past the wall clock;
+  on completion `active_seconds` is capped at `official_seconds`.
 
 ### Q1 — The activity rule behind D6 (answered)
 

@@ -321,8 +321,9 @@ def complete(db: Session, owned: OwnedGame, now: datetime, gap: timedelta) -> Co
 
     The answer is one boolean, never which cells are wrong (SECURITY.md). Every
     full-grid submission is counted (D22); a grid with empty cells is not a
-    submission at all. Idempotent once correct: the stored result is returned
-    and ``completed_at`` never moves.
+    submission at all. A submission is activity, like an input (D22).
+    Idempotent once correct: the stored result is returned and
+    ``completed_at`` never moves.
     """
     game = owned.game
     if owned.status is Status.COMPLETED:
@@ -342,6 +343,11 @@ def complete(db: Session, owned: OwnedGame, now: datetime, gap: timedelta) -> Co
     correct = secrets.compare_digest(game.state.encode(), solution.solution.encode())
     if correct:
         game.completed_at = now  # only ever written after this check (D2)
+        # Gaps are rounded one by one, so their sum can creep past the wall
+        # clock by a few seconds; active time is never more than official (D22).
+        official = official_seconds(game)
+        if official is not None:
+            game.active_seconds = min(game.active_seconds, official)
     db.commit()
     return _result(game, correct=correct)
 

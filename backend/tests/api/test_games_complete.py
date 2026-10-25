@@ -293,3 +293,43 @@ def test_the_whole_loop_through_the_api_alone(
     today = {p["difficulty"]: p for p in signed_in.get("/api/puzzles/today").json()["puzzles"]}
     assert today["hard"]["status"] == "completed"
     assert today["hard"]["official_seconds"] == elapsed
+
+
+# --- a submission is activity; active time never exceeds official (D22) ------------------
+
+
+def test_a_submission_keeps_a_past_day_game_alive(
+    db: Session, signed_in: TestClient, game_id: str, fixed_clock: Callable[[datetime], None]
+) -> None:
+    # The 24th's game, after midnight: last input 00:10, a wrong check at
+    # 00:20, a look at 00:30. Twenty minutes after the input, but ten after
+    # the submission: still open.
+    _set_state(db, game_id, _wrong())
+    game = _stored(db, game_id)
+    game.last_activity_at = NOW + timedelta(minutes=40)  # 00:10 Berlin on the 25th
+    db.commit()
+    _at(fixed_clock, minutes=50)  # 00:20
+    assert _complete(signed_in, game_id).json()["correct"] is False
+
+    _at(fixed_clock, hours=1)  # 00:30
+
+    assert signed_in.get(f"{GAMES}/{game_id}").json()["status"] == "in_progress"
+
+
+def test_active_time_never_exceeds_official_time(
+    db: Session, signed_in: TestClient, game_id: str, fixed_clock: Callable[[datetime], None]
+) -> None:
+    # Five inputs 0.6 s apart: each gap rounds up to a whole second, five in
+    # all, though only three seconds pass on the clock.
+    _set_state(db, game_id, SOLUTION)
+    cell = EMPTY[0]
+    for n in range(1, 6):
+        _at(fixed_clock, seconds=0.6 * n)
+        signed_in.put(f"{GAMES}/{game_id}/cells/{cell}", json={"value": int(SOLUTION[cell])})
+    assert _stored(db, game_id).active_seconds == 5  # the creep this guards against
+
+    result = _complete(signed_in, game_id).json()
+
+    assert result["official_seconds"] == 3
+    assert result["active_seconds"] == 3
+    assert signed_in.get(f"{GAMES}/{game_id}").json()["active_seconds"] == 3
