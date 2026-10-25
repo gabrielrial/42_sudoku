@@ -217,6 +217,8 @@ carries the solution. Done: the whole loop works through the API alone.
   refresh and the input queue; alternative is Node's test runner with
   experimental TypeScript stripping, more fragile; maintained by the Vite team,
   never shipped to production.
+  In two commits: the client, with the shared refresh (also across tabs, D15)
+  and vitest (D24) — done; then the session in the interface.
 - 6b Home page, five slots, two inactive (Q7).
 - 6c Game page wired: ordered `PUT` queue honouring `Retry-After`, 60 s
   heartbeat, decorative timer, completed and closed states; delete
@@ -257,7 +259,7 @@ New, numbered `P` so they cannot collide with `DECISIONS.md`:
 | ~~P4~~ | ~~Fake provider: deployments must declare their environment; fake accepts `?as=<login>` to test with several users~~ | Stage 1 | **Answered 2026-10-20: yes to both** — D19 (Stage 1f) |
 | ~~P5~~ | ~~Database tests without `sudoku_test`: always fail, or fail unless an opt-out variable is set~~ | Stage 2 | **Answered 2026-10-20: always fail (A)** — D20 |
 | ~~P6~~ | ~~Makefile default goal: `all` instead of the destructive `re`~~ | Stage 2 | **Answered 2026-10-21: `all`** |
-| P7 | Front-end tests with vitest, or none | Stage 6 | vitest |
+| ~~P7~~ | ~~Front-end tests with vitest, or none~~ | Stage 6 | **Answered 2026-10-25: vitest** — D24 |
 | ~~P8~~ | ~~Source for published puzzles~~ | Stage 3 | **Answered 2026-10-22: SudokuWiki's solver** (`DIFFICULTY.md`, verification) |
 | P9 | Delete merged branches | any time | developer's call |
 | ~~P10~~ | ~~`/login` over its limit answers a JSON `429`, which a browser shows raw; or redirect to `/?login_error=too_many_requests` like the callback~~ | Stage 6 | **Answered 2026-10-25: redirect** — D23 |

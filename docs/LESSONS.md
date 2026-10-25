@@ -227,6 +227,15 @@ once the connection is open cannot be overridden from outside — and it must be
 committed, or the pool's first rollback undoes it. `test_time_zones.py` tries
 both ways in: `ALTER DATABASE ... SET timezone` and `PGTZ`.
 
+## 20. `npm install vitest` failed with `reading 'edgesOut'`
+
+npm 10's resolver crashes on vitest 4's optional peer dependencies
+(`@vitest/browser-*`, which this project does not use). Install with
+`npm install --save-dev --legacy-peer-deps vitest@<version>`, then run a plain
+`npm ci` — what CI runs — to check that the lockfile is accepted without the
+flag. And run `npm audit` before settling on a version: the first one picked,
+3.2.7, had critical advisories.
+
 ---
 
 # Design corrections

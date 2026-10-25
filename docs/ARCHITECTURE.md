@@ -12,7 +12,8 @@ uvicorn. It is a runtime dependency, not only a test one, because the 42 login
 uses it in production. The standard library's `urllib` could make those two
 calls, but would not remove httpx, which the tests still need.
 
-**Frontend:** React + TypeScript + Vite. Confirmed (`DECISIONS.md` Q4).
+**Frontend:** React + TypeScript + Vite. Confirmed (`DECISIONS.md` Q4). Tests:
+vitest, dev only (`DECISIONS.md` D24).
 Chosen without a long evaluation: a 9×9 grid does not discriminate between
 frameworks, and the decision is not worth the time it costs to debate.
 

@@ -153,6 +153,12 @@ the user is signed out. Two refreshes must never run at the same time: both
 would present the same token, and the second looks exactly like theft. One
 shared in-flight request, awaited by every caller.
 
+The same holds across tabs (added 2026-10-25, Stage 6): tabs share the
+cookies, so two tabs refreshing at once — a laptop waking with the game open
+twice — would sign the user out. The refresh runs under a Web Locks lock
+(`navigator.locks`) named for the site. Serialised, the second tab's refresh
+sends the cookie the first one just received: an ordinary rotation.
+
 What this gives up, stated so nobody rediscovers it: after a logout, or after
 a stolen refresh token is detected, the access token already issued stays
 valid until it expires — up to 15 minutes. Closing that gap means a database
@@ -294,6 +300,25 @@ reports its failures, and the front end shows the message. The limit itself
 (D5) is unchanged, and the check comes before any work: a refused attempt
 stores no `state` and sets no cookie. No `Retry-After`: after a redirect there
 is nobody to read it, and the message says to wait a minute.
+
+### D24 — Front-end tests with vitest
+Decided 2026-10-25, at the start of Stage 6 (was `PLAN.md` P7).
+
+The front end has logic whose failure is silent and costly: the shared refresh
+(D15; two refreshes at once sign the user out) and, in 6c, the ordered input
+queue. Those get unit tests, with **vitest**, as a dev dependency only.
+
+- **Problem it solves:** running TypeScript tests with the same transform as
+  the app (it reuses the project's Vite config), with nothing else to set up.
+- **The alternative without it:** Node's own test runner, with its type
+  stripping — experimental on Node 22, unable to run anything Vite
+  transforms, and assertions and fakes written by hand.
+- **Profile:** maintained by the Vite team; never shipped to the browser.
+  Version **4.1.12**: the newest line that accepts the project's Vite 6. The
+  3.2 line was rejected — `npm audit` reports critical advisories in it
+  (`tinypool`, `@vitest/mocker`) that 4.1.12 fixes.
+- No DOM environment (jsdom, happy-dom): the tests are of plain modules, so the
+  `node` environment is enough. Revisit if components ever need tests.
 
 ### Q1 — The activity rule behind D6 (answered)
 
