@@ -211,6 +211,22 @@ The developer's zsh does not treat `#` as a comment in pasted commands, so a
 line with a trailing comment fails. Paste commands without comments, one at a
 time.
 
+## 18. A tuned `.env` turned the suite red
+
+Once compose passed every setting to the container, a longer
+`GAME_INACTIVITY_MINUTES` in `.env` reached the tests, which assert the decided
+values: four failed on correct code. `tests/conftest.py` now runs the suite on
+each setting's declared default. A test that needs another value says so with
+`model_copy`, never through the environment.
+
+## 19. `PGTZ` beat `options=-c timezone=UTC`
+
+The connection's startup option was meant to fix the session zone to UTC;
+`PGTZ` in the process's environment overrode it. A setting made by a `SET`
+once the connection is open cannot be overridden from outside — and it must be
+committed, or the pool's first rollback undoes it. `test_time_zones.py` tries
+both ways in: `ALTER DATABASE ... SET timezone` and `PGTZ`.
+
 ---
 
 # Design corrections

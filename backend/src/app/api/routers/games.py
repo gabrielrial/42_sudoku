@@ -93,9 +93,7 @@ def put_cell(
     )
     # After ownership: nobody can spend another player's inputs by guessing an id.
     enforce(request.app.state.input_limiter, str(owned.game.id), "Too many inputs. Slow down.")
-    play_cell(
-        db, owned, index, body.value, owned.now, timedelta(seconds=settings.game_active_gap_seconds)
-    )
+    play_cell(db, owned, index, body.value, timedelta(seconds=settings.game_active_gap_seconds))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -112,7 +110,7 @@ def post_heartbeat(
         db, user, game_id, clock.now, Thresholds.from_settings(settings), for_update=True
     )
     enforce(request.app.state.heartbeat_limiter, str(owned.game.id), "Too many heartbeats.")
-    heartbeat(db, owned, owned.now, timedelta(seconds=settings.game_active_gap_seconds))
+    heartbeat(db, owned, timedelta(seconds=settings.game_active_gap_seconds))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -135,7 +133,7 @@ def post_complete(
     # is nothing left to guess. Otherwise this is the brute-force path (D5).
     if owned.status is not Status.COMPLETED:
         enforce(request.app.state.completion_limiter, str(owned.game.id), "Too many submissions.")
-    result = complete(db, owned, owned.now, timedelta(seconds=settings.game_active_gap_seconds))
+    result = complete(db, owned, timedelta(seconds=settings.game_active_gap_seconds))
     return CompletionResult(
         correct=result.correct,
         submission_count=result.submission_count,

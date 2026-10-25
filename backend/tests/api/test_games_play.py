@@ -430,8 +430,9 @@ def test_writes_read_the_clock_after_taking_the_lock(
         for name, send in requests.items():
             timeline.clear()
             assert send().status_code in (200, 204), name
+            # One reading, after the lock: every write of the request uses it.
+            assert timeline.count("clock") == 1, f"{name}: {timeline}"
             assert "lock" in timeline, name
-            assert "clock" in timeline, name
             assert timeline.index("clock") > timeline.index("lock"), f"{name}: {timeline}"
     finally:
         event.remove(connection, "before_cursor_execute", record)

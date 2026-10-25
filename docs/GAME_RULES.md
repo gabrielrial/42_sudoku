@@ -110,7 +110,8 @@ load-bearing.
   `completed_at - started_at`.
 - An **active time** is recorded alongside it, accumulated from client activity
   with idle gaps excluded. It is advisory only. The official time is the
-  unfalsifiable one; active time is the honest-looking one.
+  unfalsifiable one; active time is the honest-looking one. Active time never
+  exceeds official time (D22).
 - The frontend timer is decoration. It is never trusted, never submitted, and
   never used to compute a stored time.
 - `completed_at` is written only after the backend has verified the submitted

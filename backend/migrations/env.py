@@ -11,11 +11,11 @@ draft: it is always reviewed by hand before it is committed.
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import pool
 
 import app.database.models  # noqa: F401  (registers every table in Base.metadata)
 from app.config import get_settings
-from app.database.conf.alch_conf import Base
+from app.database.conf.alch_conf import Base, make_engine
 
 config = context.config
 if config.config_file_name is not None:
@@ -38,11 +38,9 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    # The application's engine settings, UTC included: a migration that reads
+    # or fills a timestamp sees it as the application does.
+    connectable = make_engine(get_settings().database_url, poolclass=pool.NullPool)
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():

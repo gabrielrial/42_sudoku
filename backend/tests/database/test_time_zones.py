@@ -11,7 +11,7 @@ from collections.abc import Iterator
 from datetime import date, datetime, timedelta
 
 import pytest
-from sqlalchemy import Engine, create_engine, text
+from sqlalchemy import Connection, Engine, create_engine, text
 from sqlalchemy.orm import Session
 
 from app.clock import UTC
@@ -60,17 +60,48 @@ def test_official_time_is_real_time_in_a_berlin_session(db: Session, user: User)
     assert official_seconds(loaded) == 2 * 3600
 
 
-@pytest.fixture
-def berlin_by_default(db_engine: Engine) -> Iterator[str]:
-    """The test database made to default to Europe/Berlin, then put back."""
+def _database_timezone(conn: Connection, name: str) -> str | None:
+    """The database's own ``timezone`` setting, if it has one."""
+    settings = conn.execute(
+        text(
+            "SELECT s.setconfig FROM pg_db_role_setting s"
+            " JOIN pg_database d ON d.oid = s.setdatabase"
+            " WHERE d.datname = :name AND s.setrole = 0"
+        ),
+        {"name": name},
+    ).scalar_one_or_none()
+    for setting in settings or []:
+        key, _, value = setting.partition("=")
+        if key.lower() == "timezone":
+            return value
+    return None
+
+
+@pytest.fixture(params=["alter database", "PGTZ"])
+def berlin_by_default(
+    request: pytest.FixtureRequest, db_engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[str]:
+    """A URL whose connections default to Europe/Berlin, by either way of doing
+    it from outside the code; whatever was there before is put back."""
+    url = db_engine.url.render_as_string(hide_password=False)
+    if request.param == "PGTZ":
+        monkeypatch.setenv("PGTZ", "Europe/Berlin")  # libpq reads it on every connect
+        yield url
+        return
     name = db_engine.url.database
     with db_engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        before = _database_timezone(conn, str(name))
         conn.execute(text(f"ALTER DATABASE \"{name}\" SET timezone = 'Europe/Berlin'"))
     try:
-        yield str(db_engine.url.render_as_string(hide_password=False))
+        yield url
     finally:
         with db_engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-            conn.execute(text(f'ALTER DATABASE "{name}" RESET timezone'))
+            if before is None:
+                conn.execute(text(f'ALTER DATABASE "{name}" RESET timezone'))
+            else:
+                conn.execute(
+                    text(f'ALTER DATABASE "{name}" SET timezone = :zone'), {"zone": before}
+                )
 
 
 def _session_zone(engine: Engine) -> str:
@@ -82,7 +113,20 @@ def _session_zone(engine: Engine) -> str:
 
 
 def test_the_applications_connections_use_utc_whatever_the_default(berlin_by_default: str) -> None:
-    # Control: a connection that does not insist gets the database's default.
+    # Control: a connection that does not insist gets the default from outside.
     assert _session_zone(create_engine(berlin_by_default)) == "Europe/Berlin"
 
     assert _session_zone(make_engine(berlin_by_default)) == "UTC"
+
+
+def test_utc_survives_the_pools_rollback(berlin_by_default: str) -> None:
+    # A connection back from the pool has been rolled back: the zone must not
+    # have been set inside a transaction that rollback undoes.
+    engine = make_engine(berlin_by_default, pool_size=1, max_overflow=0)
+    try:
+        with engine.connect() as conn:
+            conn.rollback()
+        with engine.connect() as conn:
+            assert conn.execute(text("SHOW timezone")).scalar_one() == "UTC"
+    finally:
+        engine.dispose()

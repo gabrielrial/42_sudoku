@@ -68,6 +68,13 @@ Both are now specified in full:
 All timestamps are `timestamptz` in UTC; `puzzle_date` is a bare `DATE`. The
 Europe/Berlin rule is applied when computing "today", never in storage.
 
+Every database connection, the migrations' included, sets its session time zone
+to UTC as soon as it opens (`make_engine`). PostgreSQL hands a `timestamptz`
+back labelled with the session's zone, and Python subtracts two datetimes in the
+same zone as wall-clock times: in a Berlin session, two real hours across the
+end of summer time come out as one. Durations are also computed in absolute
+time (`clock.seconds_between`), so either layer alone keeps them right.
+
 ## Deployment
 
 Three stages, in order. Each one is only started when the previous is stable.

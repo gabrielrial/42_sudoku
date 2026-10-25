@@ -1,14 +1,17 @@
 """The solution never leaves the server (``AGENTS.md``, security floor; ``SECURITY.md``).
 
 One walk through every game endpoint and every outcome a player can reach before
-solving the puzzle — success, 404, 409, 410, 422, 429 — with three checks on
-every answer:
+solving the puzzle — success, 404, 409, 410, 422, 429, and a game still open
+past midnight — with four checks on every answer:
 
 - it has the status the walk expects, so each part of the walk really ran;
 - the solution does not appear in it;
 - every JSON key in it is one the API defines. A field added carelessly — a
   ``solution``, a ``hint``, a count of right cells — fails here by its mere
-  presence, whatever it would have carried.
+  presence, whatever it would have carried;
+- every grid in it is one the player already has: ``givens`` is the puzzle's,
+  and ``state`` is a grid the server held for them at that point. An allowed
+  field carrying more — a ``state`` with a solved cell filled in — fails here.
 
 Once the player has solved the puzzle, their grid *is* the solution, and
 showing it back to them leaks nothing; that state is deliberately not walked.
@@ -48,14 +51,18 @@ EMPTY = GIVENS.index("0")
 GIVEN = next(i for i, ch in enumerate(GIVENS) if ch != "0")
 
 
-def _keys(value: Any) -> Iterator[str]:
+def _items(value: Any) -> Iterator[tuple[str, Any]]:
     if isinstance(value, dict):
         for key, inner in value.items():
-            yield key
-            yield from _keys(inner)
+            yield key, inner
+            yield from _items(inner)
     elif isinstance(value, list):
         for inner in value:
-            yield from _keys(inner)
+            yield from _items(inner)
+
+
+def _keys(value: Any) -> Iterator[str]:
+    return (key for key, _ in _items(value))
 
 
 def test_no_answer_before_the_solve_leaks_anything(
@@ -101,6 +108,13 @@ def test_no_answer_before_the_solve_leaks_anything(
     call("complete, wrong grid", db_client.post(f"{game}/complete"), 200)
     call("resume after a wrong submission", db_client.get(game), 200)
 
+    fixed_clock(NOW + timedelta(minutes=25))  # 23:55 in Berlin
+    call("heartbeat before midnight", db_client.post(f"{game}/heartbeat"), 204)
+    fixed_clock(NOW + timedelta(minutes=35))  # 00:05: the hard game goes on past midnight
+    call("today, a game continuing", db_client.get(TODAY), 200)
+    call("resume past midnight", db_client.get(game), 200)
+    fixed_clock(NOW)
+
     sign_in(db_client, db, other_user(db))
     call("someone else: resume", db_client.get(game), 404)
     call("someone else: input", db_client.put(f"{game}/cells/{EMPTY}", json={"value": 1}), 404)
@@ -127,5 +141,23 @@ def test_no_answer_before_the_solve_leaks_anything(
         if r.content and set(_keys(r.json())) - API_KEYS
     }
     assert not strange, f"keys the API does not define: {strange}"
+    held = {GIVENS, "".join(wrong)}  # every grid the player's games held when looked at
+    grids = {
+        label: [(key, value) for key, value in _items(r.json()) if key in ("givens", "state")]
+        for label, r, _ in walk
+        if r.content
+    }
+    beyond = {
+        label: bad
+        for label, pairs in grids.items()
+        if (bad := [k for k, v in pairs if v not in ({GIVENS} if k == "givens" else held)])
+    }
+    assert not beyond, f"grids the player does not have: {beyond}"
     by_label = {label: r for label, r, _ in walk}
     assert by_label["complete, wrong grid"].json() == {"correct": False, "submission_count": 1}
+    # The parts of the walk that carry a grid, or a game past midnight, really did.
+    assert by_label["start"].json()["state"] == GIVENS
+    assert by_label["resume after a wrong submission"].json()["state"] == "".join(wrong)
+    assert [g["game_id"] for g in by_label["today, a game continuing"].json()["continuing"]] == [
+        game_id
+    ]

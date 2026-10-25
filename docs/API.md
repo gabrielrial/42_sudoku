@@ -169,7 +169,9 @@ a game of today's puzzle cannot be closed by the rollover, which only ever
 closes a game of an earlier day.
 
 `continuing` lists the caller's games of earlier days that are still open — a
-game played past midnight, not yet idle for 15 minutes, before 02:00 (D6, Q1).
+game played past midnight, not yet idle for the inactivity window, before the
+grace ends (D6, Q1). Both are settings: 15 minutes (`GAME_INACTIVITY_MINUTES`)
+and 02:00 (`GAME_ROLLOVER_GRACE_MINUTES=120`) by default.
 Without it, a player who closed the tab at 23:58 and came back at 00:05 could
 not find a game they may still finish. It is usually empty, never holds more
 than yesterday's games, and carries no cells: those come from
@@ -301,6 +303,12 @@ with the stored one.
 On success it sets `completed_at` and returns the official time. On failure it
 increments `submission_count` and says nothing about *which* cells are wrong —
 that would be the oracle from `SECURITY.md`.
+
+A submission is activity, like an input (D22): it moves `last_activity_at` and
+adds to active time by the same rule, so a player checking their grid after
+midnight keeps the game open. On success `active_seconds` is capped at
+`official_seconds`: gaps are rounded one by one, and their sum could otherwise
+creep a few seconds past the wall clock.
 
 Idempotent: calling it again on a completed game returns the same result and
 does not move `completed_at` (D13). That repeat is not rate-limited: once the

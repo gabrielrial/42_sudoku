@@ -184,10 +184,17 @@ heartbeat on a completed game, `closed_at` left for Phase 8). The solution is
 compared in constant time, and only in `/complete`.
 
 Reviewed by the `reviewer` agent before merging; its findings were fixed in
-seven commits (2026-10-25): durations independent of the database session's
+eight commits (2026-10-25): durations independent of the database session's
 time zone; `continuing` in the listing; a submission as activity and active
 time capped at official; the clock read after the row lock; the missing tests;
 a stricter leak walk; and every setting passed through compose.
+
+A second review of those commits found the rest, fixed in one more: the suite
+runs on the declared defaults whatever `.env` tunes; every connection sets UTC
+itself once open, so `PGTZ` cannot override it, migrations included; the
+writes take their instant from the game they were judged on, so the clock is
+read exactly once; the leak walk checks the grids it is shown, and walks a
+game past midnight.
 
 | Commit | Change |
 |---|---|

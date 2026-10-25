@@ -271,9 +271,7 @@ def _not_found() -> APIError:
 # something this path knows, so it cannot leak it (SECURITY.md, the oracle).
 
 
-def play_cell(
-    db: Session, owned: OwnedGame, index: int, value: int | None, now: datetime, gap: timedelta
-) -> None:
+def play_cell(db: Session, owned: OwnedGame, index: int, value: int | None, gap: timedelta) -> None:
     """Write ``value`` (1-9, or ``None`` to clear) into cell ``index``.
 
     Legality only (GAME_RULES.md §3): the game is open and the cell is not a
@@ -286,13 +284,14 @@ def play_cell(
         )
     digit = "0" if value is None else str(value)
     game.state = game.state[:index] + digit + game.state[index + 1 :]
-    _touch(game, now, gap)
+    _touch(owned, gap)
     db.commit()
 
 
-def heartbeat(db: Session, owned: OwnedGame, now: datetime, gap: timedelta) -> None:
+def heartbeat(db: Session, owned: OwnedGame, gap: timedelta) -> None:
     """The player is here. Nothing else changes."""
-    _touch(_open(owned), now, gap)
+    _open(owned)
+    _touch(owned, gap)
     db.commit()
 
 
@@ -306,9 +305,11 @@ def _open(owned: OwnedGame) -> GameSession:
     return owned.game
 
 
-def _touch(game: GameSession, now: datetime, gap: timedelta) -> None:
-    """Record a contact. The time since the previous one counts as active time
-    when it is short enough to be play rather than absence (D10)."""
+def _touch(owned: OwnedGame, gap: timedelta) -> None:
+    """Record a contact, at the instant the game was judged at. The time since
+    the previous one counts as active time when it is short enough to be play
+    rather than absence (D10)."""
+    game, now = owned.game, owned.now
     delta = seconds_between(game.last_activity_at, now)
     if 0 < delta <= gap.total_seconds():
         game.active_seconds += round(delta)
@@ -326,7 +327,7 @@ class Completion:
     active_seconds: int | None
 
 
-def complete(db: Session, owned: OwnedGame, now: datetime, gap: timedelta) -> Completion:
+def complete(db: Session, owned: OwnedGame, gap: timedelta) -> Completion:
     """Check the grid the server holds against the solution (D13).
 
     The answer is one boolean, never which cells are wrong (SECURITY.md). Every
@@ -346,13 +347,13 @@ def complete(db: Session, owned: OwnedGame, now: datetime, gap: timedelta) -> Co
     if solution is None:  # a puzzle is never stored without one (services/puzzles.py)
         raise RuntimeError(f"puzzle {owned.puzzle.id} has no solution")
 
-    _touch(game, now, gap)
+    _touch(owned, gap)
     game.submission_count += 1
     # Constant time: an ordinary comparison stops at the first difference, and
     # how long it took would hint at how many leading cells are right.
     correct = secrets.compare_digest(game.state.encode(), solution.solution.encode())
     if correct:
-        game.completed_at = now  # only ever written after this check (D2)
+        game.completed_at = owned.now  # only ever written after this check (D2)
         # Gaps are rounded one by one, so their sum can creep past the wall
         # clock by a few seconds; active time is never more than official (D22).
         official = official_seconds(game)
