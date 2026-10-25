@@ -80,8 +80,8 @@ Desirable:
 | `API.md`, `DATA_MODEL.md`, `SECURITY.md` vs `auth.py` | `state` cookie, PKCE, error redirects, refreshing a returning user, `/login` rate limit: documented, not built |
 | ~~`GAME_RULES.md` §4, D13 vs `API.md`, `LESSONS.md` D~~ | ~~"the client submits a full grid" vs `/complete` with no body~~ — fixed 2026-10-24 |
 | ~~Q12 vs `DATA_MODEL.md`~~ | ~~`failed_attempts` vs `submission_count`~~ — fixed 2026-10-24 |
-| Q1 vs `clock.py`, `API.md` | "all values are configuration" vs constant `ROLLOVER_GRACE_HOURS` and a fixed 90 s heartbeat gap |
-| `DATA_MODEL.md` | `game_sessions.user_id BIGINT` vs `users.id` `SERIAL`; `TEXT` vs `VARCHAR` in the models |
+| ~~Q1 vs `clock.py`, `API.md`~~ | ~~"all values are configuration" vs constant `ROLLOVER_GRACE_HOURS` and a fixed 90 s heartbeat gap~~ — fixed 2026-10-24: all of them are settings |
+| `DATA_MODEL.md` | ~~`game_sessions.user_id BIGINT` vs `users.id` `SERIAL`~~ — fixed 2026-10-24; `TEXT` (doc) vs `VARCHAR` (models of `users`, `oauth_states`, `refresh_tokens`) still differs |
 | `.env.example` | redirect on port 8001 vs `API_PORT=8000`; comment says the fake provider is refused outside development, code refuses it only in production |
 | `DECISIONS.md`, Open | "nothing here blocks Phases 1–6", but Q11 shapes Phase 3 |
 | `DIFFICULTY.md` | published-puzzle verification required, not done |
@@ -182,6 +182,12 @@ Done: `ROADMAP.md` Phase 3 exit; the solution exists only in `puzzle_solutions`.
 **Done 2026-10-24.** Decided on the way: D22 (submission count, input burst,
 heartbeat on a completed game, `closed_at` left for Phase 8). The solution is
 compared in constant time, and only in `/complete`.
+
+Reviewed by the `reviewer` agent before merging; its findings were fixed in
+seven commits (2026-10-25): durations independent of the database session's
+time zone; `continuing` in the listing; a submission as activity and active
+time capped at official; the clock read after the row lock; the missing tests;
+a stricter leak walk; and every setting passed through compose.
 
 | Commit | Change |
 |---|---|

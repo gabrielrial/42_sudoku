@@ -269,7 +269,7 @@ No body. Says only "the player is here". The server does the arithmetic:
     delta = now - last_activity_at
     if 0 < delta <= 90s:  active_seconds += round(delta)   # continuous play
     else:                 active_seconds += 0              # an idle gap
-    last_activity_at = now
+    last_activity_at = max(now, last_activity_at)          # never moves back
 
 **Active time is therefore computed by the server, not reported by the client.**
 The client cannot state a duration; it can only prove presence at an instant.
