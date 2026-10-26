@@ -222,7 +222,9 @@ carries the solution. Done: the whole loop works through the API alone.
   interface — signed in, signed out, server unreachable, and one message per
   `login_error`. Routing moved to 6b: with one page there was nothing to route.
 - 6b Home page, five slots, two inactive (Q7); routing between it and the
-  game, without a dependency.
+  game, without a dependency. **Done 2026-10-26**: starting asks first (D25);
+  the game page loads the board from the API, read-only once completed; inputs
+  stay in memory until 6c.
 - 6c Game page wired: ordered `PUT` queue honouring `Retry-After`, 60 s
   heartbeat, decorative timer, completed and closed states; delete
   `demoPuzzle.ts`.
@@ -233,7 +235,8 @@ Done: `ROADMAP.md` Phase 6 exit, by hand with the fake provider and with 42.
 ### Stage 7 — Phase 7: LAN deployment 🔐 · `deploy/lan`
 
 Deployment compose: uvicorn without `--reload`, migrations on start, built
-front end served per P3, `FORWARDED_ALLOW_IPS`, HTTPS or `COOKIE_SECURE` per
+front end served per P3 — answering every client path (`/games/…`) with
+`index.html`, as Vite's dev server does, or a reload of a game is a `404` — `FORWARDED_ALLOW_IPS`, HTTPS or `COOKIE_SECURE` per
 P2, stricter fake-provider guard per P4, purge of expired `refresh_tokens` and
 `oauth_states` in the scheduled job.
 

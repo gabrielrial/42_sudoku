@@ -320,6 +320,16 @@ queue. Those get unit tests, with **vitest**, as a dev dependency only.
 - No DOM environment (jsdom, happy-dom): the tests are of plain modules, so the
   `node` environment is enough. Revisit if components ever need tests.
 
+### D25 — Starting a puzzle takes a second tap
+Decided 2026-10-26, Stage 6.
+
+Starting a game shows its grid and starts its official clock, and neither can
+be undone (D3, Q13). On the home page, "Play" on a puzzle not yet started does
+not start it: it turns the same card into "The clock starts when the grid
+appears. There is no restart." with **Start the clock** and **Cancel**. One tap
+more, in exchange for never a clock started by a stray touch. A game already
+started — in another tab, say — is resumed, not refused: the `409` names it.
+
 ### Q1 — The activity rule behind D6 (answered)
 
 | Parameter | Value |

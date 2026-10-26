@@ -12,7 +12,7 @@ const BASE: string = import.meta.env.VITE_API_BASE ?? "/api";
 export const LOGIN_URL = `${BASE}/auth/login`;
 
 export interface ApiErrorBody {
-  error: { code: string; message: string };
+  error: { code: string; message: string; [field: string]: unknown };
 }
 
 export class ApiError extends Error {
@@ -20,6 +20,8 @@ export class ApiError extends Error {
     readonly code: string,
     readonly status: number,
     message: string,
+    /** The envelope's other fields, e.g. the `game_id` of a `409` (API.md). */
+    readonly details: Readonly<Record<string, unknown>> = {},
   ) {
     super(message);
   }
@@ -55,6 +57,53 @@ export interface Me {
 export interface Health {
   status: string;
   date: string;
+}
+
+export type Difficulty = "easy" | "medium" | "hard";
+
+/** One difficulty of today, from the caller's side. Never its cells (Q13). */
+export interface TodayPuzzle {
+  difficulty: Difficulty;
+  status: "not_started" | "in_progress" | "completed";
+  game_id: string | null;
+  official_seconds: number | null;
+  active_seconds: number | null;
+}
+
+/** A game of an earlier day, still open past midnight. */
+export interface ContinuingGame {
+  game_id: string;
+  difficulty: Difficulty;
+  date: string;
+}
+
+export interface Today {
+  date: string;
+  puzzles: TodayPuzzle[];
+  continuing: ContinuingGame[];
+}
+
+export interface GameStarted {
+  game_id: string;
+  difficulty: Difficulty;
+  date: string;
+  givens: string;
+  state: string;
+  started_at: string;
+}
+
+export interface GameView {
+  game_id: string;
+  difficulty: Difficulty;
+  date: string;
+  givens: string;
+  state: string;
+  status: "in_progress" | "completed";
+  started_at: string;
+  completed_at: string | null;
+  official_seconds: number | null;
+  active_seconds: number;
+  submission_count: number;
 }
 
 export function createClient({
@@ -103,6 +152,11 @@ export function createClient({
     /** The signed-in user; `401 not_authenticated` when nobody is. */
     getMe: () => request<Me>("/users/me"),
     logout: () => request<void>("/auth/logout", { method: "POST" }),
+    getToday: () => request<Today>("/puzzles/today"),
+    /** Shows the grid and starts its clock, for good (D2, D3, Q13). */
+    startGame: (difficulty: Difficulty) =>
+      request<GameStarted>("/games", { method: "POST", body: JSON.stringify({ difficulty }) }),
+    getGame: (gameId: string) => request<GameView>(`/games/${encodeURIComponent(gameId)}`),
   };
 }
 
@@ -110,14 +164,18 @@ async function read<T>(response: Response): Promise<T> {
   if (!response.ok) {
     let code = "unknown_error";
     let message = response.statusText;
+    let details: Record<string, unknown> = {};
     try {
-      const body = (await response.json()) as ApiErrorBody;
-      code = body.error.code;
-      message = body.error.message;
+      const { code: bodyCode, message: bodyMessage, ...rest } = (
+        (await response.json()) as ApiErrorBody
+      ).error;
+      code = bodyCode;
+      message = bodyMessage;
+      details = rest;
     } catch {
       // Not every failure carries the envelope (a proxy 502, say).
     }
-    throw new ApiError(code, response.status, message);
+    throw new ApiError(code, response.status, message, details);
   }
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 }

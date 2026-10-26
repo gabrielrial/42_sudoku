@@ -2,15 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 
 import { api } from "./api/client";
 import { SessionBar } from "./components/SessionBar";
-import { PlayPage } from "./pages/PlayPage";
+import { GamePage } from "./pages/GamePage";
+import { HomePage } from "./pages/HomePage";
 import { SignInPage } from "./pages/SignInPage";
+import { followLink, HOME_PATH, type Route, useRoute } from "./router";
 import { loadSession, type Session, takeLoginError } from "./session/session";
 
-/**
- * Who is here decides what is shown. The demo board stays the signed-in page
- * until the home page and the real game replace it (PLAN.md, 6b and 6c).
- */
+/** Who is here decides what is shown; for a signed-in user, the path does. */
 export function App() {
+  const route = useRoute();
   const [session, setSession] = useState<Session>({ kind: "loading" });
   // Read once; StrictMode may call this twice, so it must not touch the URL.
   const [loginError] = useState(() => takeLoginError(window.location.href));
@@ -58,8 +58,26 @@ export function App() {
       return (
         <>
           <SessionBar me={session.me} onSignOut={signOut} />
-          <PlayPage />
+          <Page route={route} />
         </>
+      );
+  }
+}
+
+function Page({ route }: { route: Route }) {
+  switch (route.page) {
+    case "home":
+      return <HomePage />;
+    case "game":
+      return <GamePage gameId={route.gameId} />;
+    case "not_found":
+      return (
+        <div className="status">
+          <p>There is nothing here.</p>
+          <a className="back" href={HOME_PATH} onClick={(e) => followLink(e, HOME_PATH)}>
+            ← Today's puzzles
+          </a>
+        </div>
       );
   }
 }

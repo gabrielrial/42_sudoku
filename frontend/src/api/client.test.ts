@@ -199,6 +199,16 @@ describe("answers", () => {
     });
   });
 
+  it("keeps the envelope's other fields: a 409 says which game to resume", async () => {
+    const api = createClient({
+      fetch: async () =>
+        json(409, { error: { code: "game_already_exists", message: "…", game_id: "g-1" } }),
+      base: "/api",
+    });
+
+    await expect(api.startGame("hard")).rejects.toMatchObject({ details: { game_id: "g-1" } });
+  });
+
   it("copes with a failure that has no envelope", async () => {
     const api = createClient({
       fetch: async () => new Response("<html>Bad Gateway</html>", { status: 502 }),
