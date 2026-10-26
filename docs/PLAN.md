@@ -236,7 +236,11 @@ carries the solution. Done: the whole loop works through the API alone.
   grid" once all 81 cells are filled, which first waits for every input to be
   saved, since the server checks its own grid; a wrong answer says only that,
   with the count; solved shows both times; closed is read-only.
-- 6d Check at 375 px.
+- 6d Check at 375 px. **Done 2026-10-26**, in the browser at 375×812 with a
+  throwaway dev user (deleted afterwards): sign-in page, home, start with its
+  confirmation and cancel, an input surviving a reload, a wrong check, a right
+  one, the home page showing it solved, back and forward, an unknown path,
+  sign-out. No horizontal scroll anywhere; nothing needed changing.
 
 Done: `ROADMAP.md` Phase 6 exit, by hand with the fake provider and with 42.
 
