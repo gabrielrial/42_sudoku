@@ -231,8 +231,11 @@ carries the solution. Done: the whole loop works through the API alone.
   inputs saved one at a time and in order, a cell rewritten before its turn
   sent once, `429` waited out, a lost connection retried with backoff, the
   queue outliving the page; the heartbeat, from a minute after opening; a
-  warning before closing the tab with inputs unsaved. Then: the timer, the
-  check, and the solved and closed states.
+  warning before closing the tab with inputs unsaved. Then, **done
+  2026-10-26**: the decorative clock (this device's, never sent); "Check the
+  grid" once all 81 cells are filled, which first waits for every input to be
+  saved, since the server checks its own grid; a wrong answer says only that,
+  with the count; solved shows both times; closed is read-only.
 - 6d Check at 375 px.
 
 Done: `ROADMAP.md` Phase 6 exit, by hand with the fake provider and with 42.

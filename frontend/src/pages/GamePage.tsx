@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api, type GameView } from "../api/client";
 import { difficultyLabel, formatDuration } from "../format";
+import { type CheckOutcome, checkGrid, elapsedSeconds } from "../game/check";
 import { type Grid, parseGrid, setCell } from "../game/grid";
 import { startHeartbeat } from "../game/heartbeat";
 import { createInputQueue, type InputQueue, type QueueStatus, type StopReason } from "../game/inputQueue";
@@ -82,14 +83,27 @@ const STOPPED: Partial<Record<StopReason, string>> = {
   not_found: "This game no longer exists.",
 };
 
+interface Solved {
+  officialSeconds: number;
+  activeSeconds: number;
+}
+
 function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedElsewhere: () => void }) {
   const givens = useMemo(() => parseGrid(game.givens), [game.givens]);
   const [values, setValues] = useState<Grid>(() => parseGrid(game.state));
   const queue = useMemo(() => queueFor(game.game_id), [game.game_id]);
   const [saving, setSaving] = useState<QueueStatus>(() => queue.status);
   const [stopped, setStopped] = useState<StopReason | null>(null);
-  const completed = game.status === "completed";
-  const playing = !completed && stopped === null;
+  const [solved, setSolved] = useState<Solved | null>(() =>
+    game.status === "completed"
+      ? { officialSeconds: game.official_seconds ?? 0, activeSeconds: game.active_seconds }
+      : null,
+  );
+  const [checking, setChecking] = useState(false);
+  const [checked, setChecked] = useState<CheckOutcome | null>(null);
+  const playing = solved === null && stopped === null;
+  const clock = useClock(game.started_at, playing);
+  const full = values.every((value) => value !== 0);
 
   const onStopped = useCallback(
     (reason: StopReason) => {
@@ -124,15 +138,31 @@ function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedEls
 
   const write = useCallback(
     (cell: number, value: number) => {
+      setChecked(null); // an answer about the grid before this input is stale
       setValues((current) => setCell(current, givens, cell, value));
       queue.write(cell, value === 0 ? null : value);
     },
     [givens, queue],
   );
 
+  async function check() {
+    setChecking(true);
+    const outcome = await checkGrid(
+      () => queue.idle(),
+      () => api.complete(game.game_id),
+    );
+    setChecking(false);
+    if (outcome.kind === "solved") setSolved(outcome);
+    else if (outcome.kind === "closed") setStopped("closed");
+    else setChecked(outcome);
+  }
+
   let note: string | null;
-  if (completed) note = `Solved in ${formatDuration(game.official_seconds ?? 0)}.`;
-  else if (stopped !== null) note = STOPPED[stopped] ?? null;
+  if (solved !== null) {
+    note =
+      `Solved in ${formatDuration(solved.officialSeconds)}` +
+      ` · ${formatDuration(solved.activeSeconds)} active.`;
+  } else if (stopped !== null) note = STOPPED[stopped] ?? null;
   else note = SAVING[saving];
 
   return (
@@ -141,10 +171,42 @@ function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedEls
       givens={givens}
       values={values}
       readOnly={!playing}
+      clock={clock}
       note={note}
       onWrite={write}
-    />
+    >
+      {playing && full && (
+        <div className="check">
+          <button type="button" className="button" disabled={checking} onClick={check}>
+            {checking ? "Checking…" : "Check the grid"}
+          </button>
+          {checked?.kind === "wrong" && (
+            <p className="check__answer" role="status">
+              Not solved yet: something is wrong somewhere. Checked {checked.submissions}{" "}
+              {checked.submissions === 1 ? "time" : "times"}.
+            </p>
+          )}
+          {checked?.kind === "problem" && (
+            <p className="check__answer check__answer--problem" role="alert">
+              {checked.message}
+            </p>
+          )}
+        </div>
+      )}
+    </PlayPage>
   );
+}
+
+/** The decorative clock, ticking once a second while the game is played.
+ * The official time is the server's; this one is never sent (GAME_RULES.md §4). */
+function useClock(startedAt: string, running: boolean): string | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [running]);
+  return running ? formatDuration(elapsedSeconds(startedAt, now)) : null;
 }
 
 function BackLink() {

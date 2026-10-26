@@ -94,6 +94,15 @@ export interface GameStarted {
   started_at: string;
 }
 
+/** `POST /api/games/{id}/complete`: one boolean, never which cells (API.md).
+ * The times come only with a right answer. */
+export interface CompletionResult {
+  correct: boolean;
+  submission_count: number;
+  official_seconds?: number;
+  active_seconds?: number;
+}
+
 export interface GameView {
   game_id: string;
   difficulty: Difficulty;
@@ -167,6 +176,11 @@ export function createClient({
       }),
     heartbeat: (gameId: string) =>
       request<void>(`/games/${encodeURIComponent(gameId)}/heartbeat`, { method: "POST" }),
+    /** Checks the grid the server holds; nothing is sent with it. */
+    complete: (gameId: string) =>
+      request<CompletionResult>(`/games/${encodeURIComponent(gameId)}/complete`, {
+        method: "POST",
+      }),
   };
 }
 

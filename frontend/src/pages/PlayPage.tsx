@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import { Board } from "../components/Board";
 import { NumberPad } from "../components/NumberPad";
@@ -17,14 +17,27 @@ interface PlayPageProps {
   values: Grid;
   /** A finished or closed game: the grid is shown, nothing can be written. */
   readOnly: boolean;
+  /** The decorative clock, if it runs. */
+  clock: string | null;
   /** A line under the title: the result, or whether inputs are saved. */
   note: string | null;
+  /** Under the pad: the check, and what it answered. */
+  children?: ReactNode;
   /** `value` 0 clears the cell. Never called on a given or when read-only. */
   onWrite: (cell: number, value: number) => void;
 }
 
 /** The board and the number pad. What a write does is the caller's business. */
-export function PlayPage({ title, givens, values, readOnly, note, onWrite }: PlayPageProps) {
+export function PlayPage({
+  title,
+  givens,
+  values,
+  readOnly,
+  clock,
+  note,
+  onWrite,
+  children,
+}: PlayPageProps) {
   const [selected, setSelected] = useState<number | null>(null);
 
   const selectedIsEditable = !readOnly && selected !== null && givens[selected] === 0;
@@ -58,11 +71,21 @@ export function PlayPage({ title, givens, values, readOnly, note, onWrite }: Pla
   return (
     <main className="play">
       <h1 className="play__title">{title}</h1>
-      {note !== null && <p className="play__note">{note}</p>}
+      {clock !== null && (
+        <p className="play__clock" aria-label="Time since you started">
+          {clock}
+        </p>
+      )}
+      {note !== null && (
+        <p className="play__note" aria-live="polite">
+          {note}
+        </p>
+      )}
       <Board givens={givens} values={values} selected={selected} onSelect={setSelected} />
       {!readOnly && (
         <NumberPad onDigit={write} onErase={() => write(0)} disabled={!selectedIsEditable} />
       )}
+      {children}
     </main>
   );
 }
