@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Board } from "../components/Board";
 import { NumberPad } from "../components/NumberPad";
-import { type Grid, moveFrom, parseGrid, setCell } from "../game/grid";
+import { type Grid, moveFrom } from "../game/grid";
 
 const ARROWS: Record<string, [number, number]> = {
   ArrowUp: [-1, 0],
@@ -13,31 +13,28 @@ const ARROWS: Record<string, [number, number]> = {
 
 interface PlayPageProps {
   title: string;
-  /** 81 characters each, as the API sends them (DATA_MODEL.md). */
-  givens: string;
-  state: string;
-  /** A completed game: the grid is shown, nothing can be written. */
+  givens: Grid;
+  values: Grid;
+  /** A finished or closed game: the grid is shown, nothing can be written. */
   readOnly: boolean;
+  /** A line under the title: the result, or whether inputs are saved. */
   note: string | null;
+  /** `value` 0 clears the cell. Never called on a given or when read-only. */
+  onWrite: (cell: number, value: number) => void;
 }
 
-/**
- * The board and the number pad. Inputs change the board in memory only; the
- * API calls that make them count are PLAN.md 6c.
- */
-export function PlayPage({ title, givens: givensText, state, readOnly, note }: PlayPageProps) {
-  const givens = useMemo(() => parseGrid(givensText), [givensText]);
-  const [values, setValues] = useState<Grid>(() => parseGrid(state));
+/** The board and the number pad. What a write does is the caller's business. */
+export function PlayPage({ title, givens, values, readOnly, note, onWrite }: PlayPageProps) {
   const [selected, setSelected] = useState<number | null>(null);
 
   const selectedIsEditable = !readOnly && selected !== null && givens[selected] === 0;
 
   const write = useCallback(
     (value: number) => {
-      if (readOnly || selected === null) return;
-      setValues((current) => setCell(current, givens, selected, value));
+      if (!selectedIsEditable || values[selected] === value) return;
+      onWrite(selected, value);
     },
-    [givens, readOnly, selected],
+    [onWrite, selected, selectedIsEditable, values],
   );
 
   // Hardware keyboard: digits write, Backspace/Delete/0 clear, arrows move.

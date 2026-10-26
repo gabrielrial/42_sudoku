@@ -227,7 +227,12 @@ carries the solution. Done: the whole loop works through the API alone.
   stay in memory until 6c.
 - 6c Game page wired: ordered `PUT` queue honouring `Retry-After`, 60 s
   heartbeat, decorative timer, completed and closed states; delete
-  `demoPuzzle.ts`.
+  `demoPuzzle.ts` (done in 6b). In two commits. First, **done 2026-10-26**:
+  inputs saved one at a time and in order, a cell rewritten before its turn
+  sent once, `429` waited out, a lost connection retried with backoff, the
+  queue outliving the page; the heartbeat, from a minute after opening; a
+  warning before closing the tab with inputs unsaved. Then: the timer, the
+  check, and the solved and closed states.
 - 6d Check at 375 px.
 
 Done: `ROADMAP.md` Phase 6 exit, by hand with the fake provider and with 42.

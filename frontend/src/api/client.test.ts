@@ -209,6 +209,19 @@ describe("answers", () => {
     await expect(api.startGame("hard")).rejects.toMatchObject({ details: { game_id: "g-1" } });
   });
 
+  it("reads a 429's Retry-After", async () => {
+    const api = createClient({
+      fetch: async () =>
+        new Response(JSON.stringify({ error: { code: "too_many_requests", message: "…" } }), {
+          status: 429,
+          headers: { "Retry-After": "3" },
+        }),
+      base: "/api",
+    });
+
+    await expect(api.putCell("g", 4, 7)).rejects.toMatchObject({ retryAfterSeconds: 3 });
+  });
+
   it("copes with a failure that has no envelope", async () => {
     const api = createClient({
       fetch: async () => new Response("<html>Bad Gateway</html>", { status: 502 }),

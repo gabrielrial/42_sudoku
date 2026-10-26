@@ -22,6 +22,8 @@ export class ApiError extends Error {
     message: string,
     /** The envelope's other fields, e.g. the `game_id` of a `409` (API.md). */
     readonly details: Readonly<Record<string, unknown>> = {},
+    /** A `429`'s `Retry-After`: whole seconds until a retry can succeed. */
+    readonly retryAfterSeconds: number | null = null,
   ) {
     super(message);
   }
@@ -157,6 +159,14 @@ export function createClient({
     startGame: (difficulty: Difficulty) =>
       request<GameStarted>("/games", { method: "POST", body: JSON.stringify({ difficulty }) }),
     getGame: (gameId: string) => request<GameView>(`/games/${encodeURIComponent(gameId)}`),
+    /** Legality only: the answer never says whether the digit is right (API.md). */
+    putCell: (gameId: string, cell: number, value: number | null) =>
+      request<void>(`/games/${encodeURIComponent(gameId)}/cells/${cell}`, {
+        method: "PUT",
+        body: JSON.stringify({ value }),
+      }),
+    heartbeat: (gameId: string) =>
+      request<void>(`/games/${encodeURIComponent(gameId)}/heartbeat`, { method: "POST" }),
   };
 }
 
@@ -175,7 +185,14 @@ async function read<T>(response: Response): Promise<T> {
     } catch {
       // Not every failure carries the envelope (a proxy 502, say).
     }
-    throw new ApiError(code, response.status, message, details);
+    const retryAfter = Number(response.headers.get("Retry-After") ?? Number.NaN);
+    throw new ApiError(
+      code,
+      response.status,
+      message,
+      details,
+      Number.isFinite(retryAfter) ? retryAfter : null,
+    );
   }
   return response.status === 204 ? (undefined as T) : ((await response.json()) as T);
 }
