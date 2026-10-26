@@ -1,4 +1,4 @@
-/* Plain CSS, one file. Enough for one board; revisit when Phase 6 adds pages. */
+/* Plain CSS, one file, sections by component. */
 
 :root {
   --bg: #f6f6f3;
@@ -56,6 +56,94 @@ body {
   font-size: 1.5rem;
   font-weight: 650;
   letter-spacing: -0.01em;
+}
+
+/* --- Session: signing in, who is signed in, loading ------------------------- */
+
+:root {
+  --danger: #b3261e;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --danger: #ffb4ab;
+  }
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--surface);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button--quiet {
+  min-height: 36px;
+  padding: 0 12px;
+  border-color: var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.status,
+.sign-in {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 48px 16px;
+  text-align: center;
+}
+
+.status p,
+.sign-in__text {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.sign-in__error {
+  margin: 0;
+  color: var(--danger);
+}
+
+.session-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 492px;
+  margin: 0 auto;
+  padding: 12px 16px 0;
+}
+
+.session-bar__who {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.session-bar__campus {
+  color: var(--ink-soft);
+  font-weight: 400;
 }
 
 /* --- Board ------------------------------------------------------------------ */

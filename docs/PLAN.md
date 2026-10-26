@@ -217,9 +217,12 @@ carries the solution. Done: the whole loop works through the API alone.
   refresh and the input queue; alternative is Node's test runner with
   experimental TypeScript stripping, more fragile; maintained by the Vite team,
   never shipped to production.
-  In two commits: the client, with the shared refresh (also across tabs, D15)
-  and vitest (D24) — done; then the session in the interface.
-- 6b Home page, five slots, two inactive (Q7).
+  **Done 2026-10-25**, in two commits: the client, with the shared refresh
+  (also across tabs, D15) and vitest (D24); then the session in the
+  interface — signed in, signed out, server unreachable, and one message per
+  `login_error`. Routing moved to 6b: with one page there was nothing to route.
+- 6b Home page, five slots, two inactive (Q7); routing between it and the
+  game, without a dependency.
 - 6c Game page wired: ordered `PUT` queue honouring `Retry-After`, 60 s
   heartbeat, decorative timer, completed and closed states; delete
   `demoPuzzle.ts`.
