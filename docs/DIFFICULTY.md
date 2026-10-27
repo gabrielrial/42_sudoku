@@ -103,6 +103,14 @@ jobs; do not merge them.
 A puzzle solvable by naked singles alone is still Easy; there is no fourth tier
 below Easy.
 
+### Easy starts with 32 to 42 clues
+
+The grade is still the technique, never the count. But a *minimal* Easy — 23
+or so clues, every one needed — is a long, sparse grid that beginners find
+hard however simple each step is. So an Easy puzzle is also required to start
+with **between 32 and 42 givens**, inclusive. Medium and Hard have no such
+range: they stay as sparse as uniqueness allows.
+
 ### The discard rule
 
 **A puzzle the ladder cannot finish is discarded, not shipped as Hard.**
@@ -117,7 +125,10 @@ table gains a row — the design already accommodates that.
 1. Build a random complete valid grid (randomised backtracking).
 2. Walk the cells in random order. Remove one, then run the uniqueness solver.
    If exactly one solution remains, leave the cell removed; otherwise restore it.
-3. When no further cell can be removed, run the grader.
+   For Easy, first draw a target uniformly from 32 to 42, and stop digging as
+   soon as that many givens are left.
+3. When no further cell can be removed (or, for Easy, the target is reached),
+   run the grader. An Easy candidate outside 32 to 42 givens is discarded.
 4. If the grade matches the requested tier, accept. Otherwise discard the whole
    candidate and start again from step 1.
 
