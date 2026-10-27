@@ -1,28 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { api, type GameView } from "../api/client";
 import { difficultyLabel, formatDuration } from "../format";
 import { type CheckOutcome, checkGrid, elapsedSeconds } from "../game/check";
 import { type Grid, parseGrid, setCell } from "../game/grid";
 import { startHeartbeat } from "../game/heartbeat";
-import { createInputQueue, type InputQueue, type QueueStatus, type StopReason } from "../game/inputQueue";
+import { createInputQueue, type QueueStatus, type StopReason } from "../game/inputQueue";
+import { createQueueRegistry } from "../game/queues";
 import { gameProblem } from "../home/home";
 import { followLink, HOME_PATH } from "../router";
 import { PlayPage } from "./PlayPage";
 
-// One queue per game, for the life of the tab: leaving the page right after
-// typing must not lose the input, so the queue outlives the page and drains
-// on its own. Coming back waits for it before reading the board.
-const queues = new Map<string, InputQueue>();
+const queues = createQueueRegistry((gameId) =>
+  createInputQueue((cell, value) => api.putCell(gameId, cell, value)),
+);
 
-function queueFor(gameId: string): InputQueue {
-  let queue = queues.get(gameId);
-  if (queue === undefined || queue.stopped !== null) {
-    queue = createInputQueue((cell, value) => api.putCell(gameId, cell, value));
-    queues.set(gameId, queue);
-  }
-  return queue;
-}
+// Closing the tab with an input not yet saved would lose it: ask first. For
+// the whole tab, not one page, since a queue outlives its page.
+window.addEventListener("beforeunload", (event) => {
+  if (queues.busy()) event.preventDefault();
+});
 
 /**
  * A game as the server holds it (`GET /api/games/{id}`): resuming is reading
@@ -32,23 +29,26 @@ export function GamePage({ gameId }: { gameId: string }) {
   const [game, setGame] = useState<GameView | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
 
+  // Only the latest load may show its answer: a slow one started earlier,
+  // or by a page since left, is dropped.
+  const generation = useRef(0);
+
   const load = useCallback(() => {
-    let live = true;
+    const mine = ++generation.current;
     setGame(null);
     setProblem(null);
-    // Inputs still on their way would be missing from what the server sends.
-    void (queues.get(gameId)?.idle() ?? Promise.resolve(true))
-      .then(() => api.getGame(gameId))
-      .then(
-        (loaded) => live && setGame(loaded),
-        (error: unknown) => live && setProblem(gameProblem(error)),
-      );
-    return () => {
-      live = false;
-    };
+    queues.loadAfterInputs(gameId, api.getGame).then(
+      (loaded) => generation.current === mine && setGame(loaded),
+      (error: unknown) => generation.current === mine && setProblem(gameProblem(error)),
+    );
   }, [gameId]);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    load();
+    return () => {
+      generation.current++;
+    };
+  }, [load]);
 
   if (problem !== null) {
     return (
@@ -91,7 +91,7 @@ interface Solved {
 function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedElsewhere: () => void }) {
   const givens = useMemo(() => parseGrid(game.givens), [game.givens]);
   const [values, setValues] = useState<Grid>(() => parseGrid(game.state));
-  const queue = useMemo(() => queueFor(game.game_id), [game.game_id]);
+  const queue = useMemo(() => queues.queueFor(game.game_id), [game.game_id]);
   const [saving, setSaving] = useState<QueueStatus>(() => queue.status);
   const [stopped, setStopped] = useState<StopReason | null>(null);
   const [solved, setSolved] = useState<Solved | null>(() =>
@@ -128,14 +128,6 @@ function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedEls
     return startHeartbeat(() => api.heartbeat(game.game_id), onStopped);
   }, [game.game_id, onStopped, playing]);
 
-  // Closing the tab with inputs not yet saved would lose them: ask first.
-  useEffect(() => {
-    if (saving === "saved") return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [saving]);
-
   const write = useCallback(
     (cell: number, value: number) => {
       setChecked(null); // an answer about the grid before this input is stale
@@ -170,7 +162,9 @@ function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedEls
       title={`${difficultyLabel(game.difficulty)} · ${game.date}`}
       givens={givens}
       values={values}
-      readOnly={!playing}
+      // Not while checking: an input then would make the answer about an
+      // older grid than the one on screen.
+      readOnly={!playing || checking}
       clock={clock}
       note={note}
       onWrite={write}

@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, createClient, type Lock } from "./client";
+import { ApiError, browserLock, createClient, type Lock } from "./client";
 
 // A fake server: each path answers from a queue of statuses (the last one
 // repeats), and every request is recorded. Responses can be held back, so a
@@ -81,6 +81,8 @@ describe("a request answered 401", () => {
   it("refreshes once, then retries the request", async () => {
     const server = fakeServer({ "/users/me": [401, 200], "/auth/refresh": [200] });
     const api = createClient({ fetch: server.fetch, base: "/api" });
+    let signedOut = 0;
+    api.onSignedOut(() => signedOut++);
 
     await expect(api.getMe()).resolves.toEqual({ login: "ana", campus_name: "Berlin" });
 
@@ -89,18 +91,35 @@ describe("a request answered 401", () => {
       "POST /auth/refresh",
       "GET /users/me",
     ]);
+    expect(signedOut).toBe(0); // an expired access token is routine, every 15 minutes
   });
 
   it("shares one refresh among every request that hit a 401 meanwhile", async () => {
     // Five requests at once with an expired access token: one refresh, not five.
     const server = fakeServer({ "/users/me": [401, 401, 401, 401, 401, 200], "/auth/refresh": [200] });
     const api = createClient({ fetch: server.fetch, base: "/api" });
+    let signedOut = 0;
+    api.onSignedOut(() => signedOut++);
 
     const results = await Promise.all(Array.from({ length: 5 }, () => api.getMe()));
 
     expect(results).toHaveLength(5);
     expect(server.count("/auth/refresh")).toBe(1);
     expect(server.count("/users/me")).toBe(10);
+    expect(signedOut).toBe(0);
+  });
+
+  it("does not sign out when the refresh fails for another reason: the session may be fine", async () => {
+    // The API restarting answers 502; the refresh cookie is still valid.
+    const server = fakeServer({ "/users/me": [401, 200], "/auth/refresh": [502] });
+    const api = createClient({ fetch: server.fetch, base: "/api" });
+    let signedOut = 0;
+    api.onSignedOut(() => signedOut++);
+
+    await expect(api.getMe()).rejects.toMatchObject({ status: 502 });
+
+    expect(signedOut).toBe(0);
+    expect(server.count("/users/me")).toBe(1); // not retried on a session it could not renew
   });
 
   it("signs out when the refresh fails, and retries nothing", async () => {
@@ -148,6 +167,49 @@ describe("a request answered 401", () => {
     await expect(api.logout()).rejects.toMatchObject({ status: 401 });
 
     expect(server.count("/auth/refresh")).toBe(0);
+  });
+});
+
+describe("the browser's lock", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is held for the whole refresh, not only while it starts", async () => {
+    let held = false;
+    let heldDuringRefresh: boolean | null = null;
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: async (_name: string, task: () => Promise<unknown>) => {
+          held = true;
+          try {
+            return await task();
+          } finally {
+            held = false;
+          }
+        },
+      },
+    });
+    const fetch = async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/auth/refresh")) {
+        await new Promise((resolve) => setTimeout(resolve, 5)); // the network takes a while
+        heldDuringRefresh = held;
+        return json(200, { login: "ana", campus_name: "Berlin" });
+      }
+      return heldDuringRefresh === null ? json(401, NOT_AUTHENTICATED) : json(200, {});
+    };
+    const api = createClient({ fetch, lock: browserLock, base: "/api" });
+
+    await api.getMe();
+
+    expect(heldDuringRefresh).toBe(true);
+    expect(held).toBe(false);
+  });
+
+  it("is skipped where the browser has none (plain HTTP): the refresh still runs", async () => {
+    vi.stubGlobal("navigator", {});
+
+    await expect(browserLock(async () => "refreshed")).resolves.toBe("refreshed");
   });
 });
 
@@ -236,6 +298,19 @@ describe("answers", () => {
     const api = createClient({ fetch: server.fetch, base: "/api" });
 
     await expect(api.logout()).resolves.toBeUndefined();
+  });
+
+  it("gives up on a request with no answer, as on a lost connection", async () => {
+    const hanging = (_input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+      });
+    const api = createClient({ fetch: hanging, base: "/api", timeoutMs: 10 });
+
+    const failure = await api.putCell("g", 0, 5).catch((e: unknown) => e);
+
+    expect(failure).not.toBeInstanceOf(ApiError); // so the input queue retries it
+    expect(failure).toMatchObject({ name: "TimeoutError" });
   });
 
   it("sends cookies, and a JSON content type only with a body", async () => {

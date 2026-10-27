@@ -122,7 +122,9 @@ export function createInputQueue(
       }
     }
     running = false;
-    emit(stopped === null ? "saved" : status);
+    // Nothing is waiting either way: a stopped queue dropped what it had,
+    // which the game being over made pointless. `stopped` says which it is.
+    emit("saved");
     settleIdle(stopped === null);
   }
 

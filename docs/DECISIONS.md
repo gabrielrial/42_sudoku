@@ -159,11 +159,28 @@ twice — would sign the user out. The refresh runs under a Web Locks lock
 (`navigator.locks`) named for the site. Serialised, the second tab's refresh
 sends the cookie the first one just received: an ordinary rotation.
 
+Web Locks exist only in a secure context: HTTPS, or `localhost`. Served over
+plain HTTP — a LAN address without a certificate — the lock is missing,
+refreshes are serialised within each tab only, and two tabs refreshing at the
+same instant can still sign the user out. One more reason for HTTPS at
+Stage 7 (`PLAN.md` P2).
+
+Only a `401` from the refresh means the session is over. Any other failure —
+a `502` while the API restarts — is reported as that failure and retried by
+whoever asked: a valid session is never thrown away, nor the inputs waiting
+on it, because the server stumbled.
+
 What this gives up, stated so nobody rediscovers it: after a logout, or after
 a stolen refresh token is detected, the access token already issued stays
 valid until it expires — up to 15 minutes. Closing that gap means a database
 check on every request (a `sid` claim matched against `refresh_tokens`);
 considered and parked on 2026-10-01.
+
+And a refresh whose answer never arrives — the tab reloaded or closed while
+it was in flight, after the server had committed the rotation — leaves the
+browser holding a token already used. The next refresh presents it, looks
+like theft, and that device is signed out. Rare, and the cost of rotation
+without a grace window; accepted.
 
 ### D16 — Only 42 accounts; no local accounts
 Decided 2026-10-06.
@@ -314,7 +331,8 @@ queue. Those get unit tests, with **vitest**, as a dev dependency only.
   stripping — experimental on Node 22, unable to run anything Vite
   transforms, and assertions and fakes written by hand.
 - **Profile:** maintained by the Vite team; never shipped to the browser.
-  Version **4.1.12**: the newest line that accepts the project's Vite 6. The
+  Version **4.1.12**, pinned exactly: the 4 line accepts the project's Vite 6,
+  and a later 4.x is taken only on purpose. The
   3.2 line was rejected — `npm audit` reports critical advisories in it
   (`tinypool`, `@vitest/mocker`) that 4.1.12 fixes.
 - No DOM environment (jsdom, happy-dom): the tests are of plain modules, so the

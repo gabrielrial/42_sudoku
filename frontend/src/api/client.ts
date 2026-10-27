@@ -39,7 +39,9 @@ export type Lock = <T>(task: () => Promise<T>) => Promise<T>;
  * (D15). Serialised, the second tab's refresh sends the cookie the first one
  * just received, which is an ordinary rotation.
  */
-function browserLock<T>(task: () => Promise<T>): Promise<T> {
+export function browserLock<T>(task: () => Promise<T>): Promise<T> {
+  // Web Locks exist only in a secure context (HTTPS, or localhost). Without
+  // them, refreshes are serialised within each tab only (D15, PLAN.md P2).
   if (typeof navigator === "undefined" || !navigator.locks) return task();
   // The lock is held until `task` settles; `request` resolves to its result.
   return navigator.locks.request("sudoku42-refresh", task) as Promise<T>;
@@ -49,7 +51,12 @@ export interface ClientOptions {
   fetch?: typeof fetch;
   lock?: Lock;
   base?: string;
+  timeoutMs?: number;
 }
+
+/** A request with no answer by then is given up: a half-open connection on a
+ * phone would otherwise hold everything queued behind it. */
+export const REQUEST_TIMEOUT_MS = 15_000;
 
 export interface Me {
   login: string;
@@ -121,6 +128,7 @@ export function createClient({
   fetch: send = (input, init) => fetch(input, init),
   lock = browserLock,
   base = BASE,
+  timeoutMs = REQUEST_TIMEOUT_MS,
 }: ClientOptions = {}) {
   const signedOutListeners = new Set<() => void>();
   // One refresh in flight in this tab, awaited by every request that hit a
@@ -130,15 +138,26 @@ export function createClient({
   function call(path: string, init: RequestInit = {}): Promise<Response> {
     const headers = new Headers(init.headers);
     if (init.body !== undefined) headers.set("Content-Type", "application/json");
-    return send(`${base}${path}`, { ...init, headers, credentials: "include" });
+    // A timed-out request rejects like a lost connection, and is retried as one.
+    const signal = init.signal ?? AbortSignal.timeout(timeoutMs);
+    return send(`${base}${path}`, { ...init, headers, signal, credentials: "include" });
   }
 
+  /**
+   * `true` once refreshed, `false` when the session is over. Only a `401`
+   * says that: any other failure (a 502 while the API restarts, say) is
+   * thrown as it came, so the caller retries or reports it, and a valid
+   * session is not thrown away with the inputs waiting on it.
+   */
   function refresh(): Promise<boolean> {
-    refreshing ??= lock(async () => (await call("/auth/refresh", { method: "POST" })).ok).finally(
-      () => {
-        refreshing = null;
-      },
-    );
+    refreshing ??= lock(async () => {
+      const response = await call("/auth/refresh", { method: "POST" });
+      if (response.status === 401) return false;
+      await read<unknown>(response);
+      return true;
+    }).finally(() => {
+      refreshing = null;
+    });
     return refreshing;
   }
 

@@ -127,7 +127,7 @@ rather than a URL taken from the settings.
 | 1b | `state` cookie at `/login` (`Path=/api/auth/callback`, 10 min, HttpOnly, Lax), compared with `secrets.compare_digest`; `state` deletion committed before calling 42 | missing or different cookie rejected; replay after a failed callback rejected |
 | 1c | Every failure → `302` to `FRONTEND_ORIGIN/?login_error=<code>`; `error=access_denied` handled; user and token in one commit | one test per error code; no detail leaks |
 | 1d | Upsert refreshes a returning user; a login 42 reassigned goes to its new holder, the stale holder renamed from `GET /v2/users/:id` or to `former-<intra_id>` (D21) | returning user with a new login or campus; takeover by a newcomer and by a returning user; every fallback; no extra call to 42 without a collision |
-| 1e | Rate limit on `/login` | `429` on the real route |
+| 1e | Rate limit on `/login` | `429` on the real route (since D23, a redirect to `?login_error=too_many_requests`) |
 | 1f | P4: `APP_ENV` required, with no default in `Settings` or compose, so a deployment that forgets it does not start; fake provider honours `?as=<login>` (validated format, fake users kept apart from real `intra_id`s), ignored outside fake mode | missing `APP_ENV` refuses to start; fake refused in production; `?as=` gives two distinct users; `?as=` ignored by the real provider |
 
 Done: login → callback → `/api/users/me` through the fake provider in one
@@ -272,7 +272,7 @@ New, numbered `P` so they cannot collide with `DECISIONS.md`:
 | # | Question | Needed by | Proposal |
 |---|---|---|---|
 | ~~P1~~ | ~~How the generation job runs~~ | Stage 4 | **Answered 2026-10-23: its own compose service** (Q11) |
-| P2 | Cookies on the LAN: HTTPS through a proxy (Caddy, mkcert), or a `COOKIE_SECURE` setting independent of `APP_ENV` | Stage 7 | — |
+| P2 | Cookies on the LAN: HTTPS through a proxy (Caddy, mkcert), or a `COOKIE_SECURE` setting independent of `APP_ENV` | Stage 7 | HTTPS: plain HTTP also loses the cross-tab refresh lock, which only exists in a secure context (D15) |
 | P3 | Serving the built front end: FastAPI `StaticFiles` (one origin, nothing new) or an nginx/Caddy container | Stage 7 | FastAPI |
 | ~~P4~~ | ~~Fake provider: deployments must declare their environment; fake accepts `?as=<login>` to test with several users~~ | Stage 1 | **Answered 2026-10-20: yes to both** — D19 (Stage 1f) |
 | ~~P5~~ | ~~Database tests without `sudoku_test`: always fail, or fail unless an opt-out variable is set~~ | Stage 2 | **Answered 2026-10-20: always fail (A)** — D20 |

@@ -142,6 +142,52 @@ describe("the input queue", () => {
     ]);
   });
 
+  it("lets a newer value of a failed cell wait its turn, behind what was typed before it", async () => {
+    const server = fakePut([new TypeError("Failed to fetch")]);
+    server.hold();
+    const queue = createInputQueue(server.put, fakeSleep().sleep);
+
+    queue.write(1, 1); // in flight, will be lost
+    queue.write(2, 2);
+    queue.write(1, 3); // the newer value of cell 1, queued after cell 2
+    server.releaseAll();
+
+    await queue.idle();
+    expect(server.sent).toEqual([
+      [1, 1],
+      [2, 2],
+      [1, 3],
+    ]);
+  });
+
+  it("retries a lost input before the ones typed after it", async () => {
+    const server = fakePut([new TypeError("Failed to fetch")]);
+    const queue = createInputQueue(server.put, fakeSleep().sleep);
+
+    queue.write(1, 1);
+    queue.write(2, 2);
+
+    await queue.idle();
+    expect(server.sent).toEqual([
+      [1, 1],
+      [1, 1],
+      [2, 2],
+    ]);
+  });
+
+  it("starts the wait over once an input gets through", async () => {
+    const offline = new TypeError("Failed to fetch");
+    const server = fakePut([offline, undefined, offline]);
+    const { sleep, asked } = fakeSleep();
+    const queue = createInputQueue(server.put, sleep);
+
+    queue.write(1, 1);
+    queue.write(2, 2);
+
+    await queue.idle();
+    expect(asked).toEqual([1000, 1000]); // not 1 s, then 2 s
+  });
+
   it("keeps an input through a lost connection, retrying with a growing wait", async () => {
     const offline = new TypeError("Failed to fetch");
     const down = new ApiError("unknown_error", 502, "Bad Gateway");
@@ -192,7 +238,7 @@ describe("the input queue", () => {
     queue.write(2, 6); // ignored: the game is over
     expect(server.sent).toEqual([[0, 4]]);
     expect(queue.stopped).toBe(reason);
-    expect(events.at(-1)?.stopped).toBe(reason);
+    expect(events.at(-1)).toEqual({ status: "saved", stopped: reason }); // nothing left waiting
     await expect(queue.idle()).resolves.toBe(false);
   });
 
@@ -261,6 +307,26 @@ describe("the heartbeat", () => {
     await vi.advanceTimersByTimeAsync(HEARTBEAT_MS * 3);
 
     expect(beat).toHaveBeenCalledTimes(3);
+    expect(onStopped).not.toHaveBeenCalled();
+  });
+
+  it("says nothing about a beat that comes back after it was stopped", async () => {
+    vi.useFakeTimers();
+    let refuse!: (error: unknown) => void;
+    const beat = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          refuse = reject;
+        }),
+    );
+    const onStopped = vi.fn();
+    const stop = startHeartbeat(beat, onStopped);
+
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_MS); // a beat goes out...
+    stop(); // ...the page goes away...
+    refuse(closed); // ...and the answer arrives after
+    await vi.advanceTimersByTimeAsync(0);
+
     expect(onStopped).not.toHaveBeenCalled();
   });
 
