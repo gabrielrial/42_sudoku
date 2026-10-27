@@ -348,6 +348,21 @@ appears. There is no restart." with **Start the clock** and **Cancel**. One tap
 more, in exchange for never a clock started by a stray touch. A game already
 started — in another tab, say — is resumed, not refused: the `409` names it.
 
+### D26 — Easy puzzles start with 32 to 42 clues
+Decided 2026-10-27, from playing the first Easy puzzles.
+
+Every puzzle was dug to minimal, so an Easy started with 23 to 26 givens: each
+step a single, but a long, sparse grid that felt hard. Easy now stops digging
+at a target drawn per puzzle from 32 to 42, inclusive, and is discarded if it
+ends outside that range (`DIFFICULTY.md`, "Easy starts with 32 to 42 clues").
+The grade is unchanged — still the hardest technique required, and an Easy
+still needs nothing beyond tier 1. Medium and Hard stay minimal.
+
+Measured before choosing it: dug to 32 givens, 134 of 150 random grids grade
+Easy; from 38 on, all of them; about 10 ms each. The generator version is now
+`"2"`, since a seed no longer reproduces a version-1 puzzle. The development
+database's Easy puzzles from 2026-10-27 on were regenerated.
+
 ### Q1 — The activity rule behind D6 (answered)
 
 | Parameter | Value |
