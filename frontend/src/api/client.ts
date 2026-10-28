@@ -193,6 +193,9 @@ export function createClient({
         method: "PUT",
         body: JSON.stringify({ value }),
       }),
+    /** Empties every cell the player filled; the clock goes on (D27). */
+    clearCells: (gameId: string) =>
+      request<void>(`/games/${encodeURIComponent(gameId)}/cells`, { method: "DELETE" }),
     heartbeat: (gameId: string) =>
       request<void>(`/games/${encodeURIComponent(gameId)}/heartbeat`, { method: "POST" }),
     /** Checks the grid the server holds; nothing is sent with it. */

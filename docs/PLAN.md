@@ -236,6 +236,9 @@ carries the solution. Done: the whole loop works through the API alone.
   grid" once all 81 cells are filled, which first waits for every input to be
   saved, since the server checks its own grid; a wrong answer says only that,
   with the count; solved shows both times; closed is read-only.
+- 6e (asked for while testing, 2026-10-27) "Clear the grid" (D27): one
+  request that empties every filled cell, through the input queue; not a
+  restart, so the clock and the submissions are untouched.
 - 6d Check at 375 px. **Done 2026-10-26**, in the browser at 375×812 with a
   throwaway dev user (deleted afterwards): sign-in page, home, start with its
   confirmation and cancel, an input surviving a reload, a wrong check, a right

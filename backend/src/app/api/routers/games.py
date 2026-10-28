@@ -19,6 +19,7 @@ from app.database.schema.games import (
 )
 from app.services.game_status import Status, Thresholds
 from app.services.games import (
+    clear_cells,
     complete,
     heartbeat,
     official_seconds,
@@ -94,6 +95,24 @@ def put_cell(
     # After ownership: nobody can spend another player's inputs by guessing an id.
     enforce(request.app.state.input_limiter, str(owned.game.id), "Too many inputs. Slow down.")
     play_cell(db, owned, index, body.value, timedelta(seconds=settings.game_active_gap_seconds))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/{game_id}/cells", status_code=status.HTTP_204_NO_CONTENT)
+def delete_cells(
+    game_id: str,
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """Clear the grid back to its givens (D27). One input, as far as the
+    rate limit is concerned; the clock goes on."""
+    owned = owned_game(
+        db, user, game_id, clock.now, Thresholds.from_settings(settings), for_update=True
+    )
+    enforce(request.app.state.input_limiter, str(owned.game.id), "Too many inputs. Slow down.")
+    clear_cells(db, owned, timedelta(seconds=settings.game_active_gap_seconds))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

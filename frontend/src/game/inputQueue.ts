@@ -7,6 +7,11 @@
 // A cell written again before its turn is sent once, with its last value —
 // the server keeps only that, so the requests in between would only spend
 // the rate limit (a burst of 10, refilled at one a second, D22).
+//
+// Clearing the grid (D27) goes through the same line: whatever was waiting
+// is dropped, the grid being about to be emptied anyway, and whatever is
+// written afterwards is sent after the clear. An old digit can never land
+// on a grid cleared after it was typed.
 
 import { ApiError } from "../api/client";
 
@@ -27,6 +32,8 @@ export interface QueueEvent {
 export interface InputQueue {
   /** `value` 1-9, or `null` to clear. */
   write(cell: number, value: number | null): void;
+  /** Empty every cell the player filled. */
+  clear(): void;
   /** Resolves once everything written so far is saved: `true`, or `false`
    * if the queue stopped first. */
   idle(): Promise<boolean>;
@@ -53,10 +60,17 @@ export const backoff = (failures: number): number => Math.min(30_000, 1000 * 2 *
 export function createInputQueue(
   put: (cell: number, value: number | null) => Promise<void>,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  clearAll: () => Promise<void> = async () => {},
 ): InputQueue {
   // Insertion order is sending order; setting a cell already waiting keeps its
   // place and replaces its value.
   const pending = new Map<number, number | null>();
+  // A clear asked for and not yet saved. It goes before every cell waiting:
+  // asking for it dropped the rest, so those were all written after it.
+  let clearing = false;
+  // How many clears were asked for: an input taken before the latest one is
+  // never retried, or it would undo the clear.
+  let clears = 0;
   const listeners = new Set<(event: QueueEvent) => void>();
   let idleWaiters: Array<(saved: boolean) => void> = [];
   let status: QueueStatus = "saved";
@@ -89,12 +103,27 @@ export function createInputQueue(
     if (running) return;
     running = true;
     let failures = 0;
-    while (stopped === null && pending.size > 0) {
-      const [cell, value] = pending.entries().next().value!;
-      pending.delete(cell);
+    while (stopped === null && (clearing || pending.size > 0)) {
+      let send: () => Promise<void>;
+      let retry: () => void;
+      if (clearing) {
+        clearing = false;
+        send = clearAll;
+        retry = () => {
+          clearing = true;
+        };
+      } else {
+        const [cell, value] = pending.entries().next().value!;
+        pending.delete(cell);
+        const taken = clears;
+        send = () => put(cell, value);
+        retry = () => {
+          if (clears === taken) retryFirst(cell, value);
+        };
+      }
       emit("saving");
       try {
-        await put(cell, value);
+        await send();
         failures = 0;
       } catch (error) {
         const reason = stopReasonOf(error);
@@ -104,7 +133,7 @@ export function createInputQueue(
           break;
         }
         if (error instanceof ApiError && error.status === 429) {
-          retryFirst(cell, value);
+          retry();
           emit("waiting");
           await sleep(1000 * (error.retryAfterSeconds ?? 1));
           continue;
@@ -115,7 +144,7 @@ export function createInputQueue(
           continue;
         }
         // No answer, or the server failed: the input is not lost, only late.
-        retryFirst(cell, value);
+        retry();
         failures += 1;
         emit("offline");
         await sleep(backoff(failures));
@@ -134,9 +163,16 @@ export function createInputQueue(
       pending.set(cell, value);
       void run();
     },
+    clear() {
+      if (stopped !== null) return;
+      pending.clear();
+      clears += 1;
+      clearing = true;
+      void run();
+    },
     idle() {
       if (stopped !== null) return Promise.resolve(false);
-      if (!running && pending.size === 0) return Promise.resolve(true);
+      if (!running && !clearing && pending.size === 0) return Promise.resolve(true);
       return new Promise((resolve) => idleWaiters.push(resolve));
     },
     subscribe(listener) {

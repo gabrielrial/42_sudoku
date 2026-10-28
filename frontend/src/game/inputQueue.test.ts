@@ -263,6 +263,115 @@ describe("the input queue", () => {
   });
 });
 
+/** Inputs and clears in one log, as the server would see them. */
+function fakeLine(answers: unknown[] = []) {
+  const log: string[] = [];
+  const gates: Array<() => void> = [];
+  let holding = false;
+  const take = async (entry: string) => {
+    log.push(entry);
+    if (holding) await new Promise<void>((resolve) => gates.push(resolve));
+    const answer = answers.shift();
+    if (answer !== undefined) throw answer;
+  };
+  return {
+    log,
+    put: (cell: number, value: number | null) => take(`${cell}=${value}`),
+    clearAll: () => take("clear"),
+    hold: () => {
+      holding = true;
+    },
+    releaseAll: async () => {
+      holding = false;
+      while (gates.length) {
+        gates.shift()!();
+        await Promise.resolve();
+      }
+    },
+  };
+}
+
+describe("clearing the grid", () => {
+  it("drops the inputs still waiting, and sends what comes after the clear after it", async () => {
+    const line = fakeLine();
+    line.hold();
+    const queue = createInputQueue(line.put, fakeSleep().sleep, line.clearAll);
+
+    queue.write(1, 1); // in flight
+    queue.write(2, 2); // waiting: dropped, the grid is about to be emptied
+    queue.clear();
+    queue.write(3, 3); // after the clear
+    await line.releaseAll();
+
+    await expect(queue.idle()).resolves.toBe(true);
+    expect(line.log).toEqual(["1=1", "clear", "3=3"]);
+  });
+
+  it("never retries an input from before the clear: it would undo it", async () => {
+    const line = fakeLine([new TypeError("Failed to fetch")]);
+    line.hold();
+    const queue = createInputQueue(line.put, fakeSleep().sleep, line.clearAll);
+
+    queue.write(1, 1); // in flight, will be lost...
+    queue.clear(); // ...but the grid was cleared after it was typed
+    await line.releaseAll();
+
+    await queue.idle();
+    expect(line.log).toEqual(["1=1", "clear"]);
+  });
+
+  it("retries a clear over the limit, still before what was written after it", async () => {
+    const line = fakeLine([tooMany(2)]);
+    const { sleep, asked } = fakeSleep();
+    const queue = createInputQueue(line.put, sleep, line.clearAll);
+
+    queue.clear();
+    queue.write(5, 9);
+
+    await queue.idle();
+    expect(line.log).toEqual(["clear", "clear", "5=9"]);
+    expect(asked).toEqual([2000]);
+  });
+
+  it("keeps a clear through a lost connection", async () => {
+    const line = fakeLine([new TypeError("Failed to fetch")]);
+    const queue = createInputQueue(line.put, fakeSleep().sleep, line.clearAll);
+
+    queue.clear();
+
+    await expect(queue.idle()).resolves.toBe(true);
+    expect(line.log).toEqual(["clear", "clear"]);
+  });
+
+  it("is not idle until the clear is saved", async () => {
+    const line = fakeLine();
+    line.hold();
+    const queue = createInputQueue(line.put, fakeSleep().sleep, line.clearAll);
+    let idle = false;
+
+    queue.clear();
+    void queue.idle().then(() => (idle = true));
+    await Promise.resolve();
+    expect(idle).toBe(false);
+
+    await line.releaseAll();
+    await queue.idle();
+    expect(idle).toBe(true);
+  });
+
+  it("stops like an input when the game is over, and is ignored after", async () => {
+    const line = fakeLine([closed]);
+    const queue = createInputQueue(line.put, fakeSleep().sleep, line.clearAll);
+
+    queue.clear();
+    await expect(queue.idle()).resolves.toBe(false);
+    queue.clear();
+
+    expect(queue.stopped).toBe("closed");
+    expect(line.log).toEqual(["clear"]);
+  });
+});
+
 describe("backoff", () => {
   it("doubles from one second and stops at thirty", () => {
     expect([1, 2, 3, 4, 5, 6, 7].map(backoff)).toEqual([

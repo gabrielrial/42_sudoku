@@ -257,6 +257,20 @@ body {
   color: var(--danger);
 }
 
+.clear {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: var(--board-size);
+  text-align: center;
+}
+
+.clear__text {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
 .button:disabled {
   opacity: 0.6;
   cursor: default;

@@ -12,7 +12,11 @@ import { followLink, HOME_PATH } from "../router";
 import { PlayPage } from "./PlayPage";
 
 const queues = createQueueRegistry((gameId) =>
-  createInputQueue((cell, value) => api.putCell(gameId, cell, value)),
+  createInputQueue(
+    (cell, value) => api.putCell(gameId, cell, value),
+    undefined,
+    () => api.clearCells(gameId),
+  ),
 );
 
 // Closing the tab with an input not yet saved would lose it: ask first. For
@@ -104,6 +108,8 @@ function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedEls
   const playing = solved === null && stopped === null;
   const clock = useClock(game.started_at, playing);
   const full = values.every((value) => value !== 0);
+  const anyFilled = values.some((value, cell) => value !== 0 && givens[cell] === 0);
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   const onStopped = useCallback(
     (reason: StopReason) => {
@@ -136,6 +142,15 @@ function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedEls
     },
     [givens, queue],
   );
+
+  // Clearing takes a second tap, like starting (D25): it cannot be undone,
+  // and the clock goes on (D27).
+  function clear() {
+    setConfirmingClear(false);
+    setChecked(null);
+    setValues(givens);
+    queue.clear();
+  }
 
   async function check() {
     setChecking(true);
@@ -184,6 +199,38 @@ function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedEls
             <p className="check__answer check__answer--problem" role="alert">
               {checked.message}
             </p>
+          )}
+        </div>
+      )}
+      {playing && anyFilled && (
+        <div className="clear">
+          {confirmingClear ? (
+            <>
+              <p className="clear__text">
+                Clear every digit you placed? The clock keeps running.
+              </p>
+              <div className="slot__actions">
+                <button type="button" className="button" disabled={checking} onClick={clear}>
+                  Clear the grid
+                </button>
+                <button
+                  type="button"
+                  className="button button--quiet"
+                  onClick={() => setConfirmingClear(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="button button--quiet"
+              disabled={checking}
+              onClick={() => setConfirmingClear(true)}
+            >
+              Clear the grid
+            </button>
           )}
         </div>
       )}

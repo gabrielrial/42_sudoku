@@ -363,6 +363,29 @@ Easy; from 38 on, all of them; about 10 ms each. The generator version is now
 `"2"`, since a seed no longer reproduces a version-1 puzzle. The development
 database's Easy puzzles from 2026-10-27 on were regenerated.
 
+### D27 — The player can clear the grid
+Decided 2026-10-27, Stage 6.
+
+A player who has gone wrong may want to start the grid over without
+retyping 50 erasures. `DELETE /api/games/{id}/cells` puts the grid back to its
+givens in one request; the game page offers "Clear the grid", which asks
+first, as starting does (D25), because it cannot be undone.
+
+It is not a restart, and so it is compatible with D3: the session stays the
+same session — `started_at`, the official clock, `submission_count` and the
+active time already earned are left exactly as they were. Nothing about the
+game's history can be wiped, only the cells.
+
+- **One request, not one per cell:** at one input a second (D22), clearing 50
+  cells one by one would take most of a minute.
+- **An input in every other respect:** the same legality, one token from the
+  same rate-limit bucket, and activity — it keeps a past-day game alive like
+  any input. It never reads the solution.
+- **Ordered with the inputs:** in the client it goes through the same queue.
+  Inputs still waiting are dropped, since the grid is about to be emptied;
+  inputs typed afterwards are sent after it; an input already sent before the
+  clear is never retried after it, or it would undo the clear.
+
 ### Q1 — The activity rule behind D6 (answered)
 
 | Parameter | Value |

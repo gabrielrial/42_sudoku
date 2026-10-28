@@ -152,6 +152,7 @@ def test_playing_never_reads_the_solution(
 
 WRITES: dict[str, Callable[[TestClient, str], Response]] = {
     "input": lambda c, g: _put(c, g, EMPTY, 4),
+    "clear": lambda c, g: c.delete(f"{GAMES}/{g}/cells"),
     "heartbeat": _beat,
     "complete": lambda c, g: c.post(f"{GAMES}/{g}/complete"),
 }
@@ -418,16 +419,17 @@ def test_writes_read_the_clock_after_taking_the_lock(
     connection = db.connection()
     event.listen(connection, "before_cursor_execute", record)
     monkeypatch.setattr(clock, "now", lambda: timeline.append("clock") or NOW)
-    game = _stored(db, game_id)
-    game.state = SOLUTION
-    db.commit()
     requests = {
         "input": lambda: _put(signed_in, game_id, EMPTY, RIGHT),
+        "clear": lambda: signed_in.delete(f"{GAMES}/{game_id}/cells"),
         "heartbeat": lambda: _beat(signed_in, game_id),
         "complete": lambda: signed_in.post(f"{GAMES}/{game_id}/complete"),
     }
     try:
         for name, send in requests.items():
+            game = _stored(db, game_id)
+            game.state = SOLUTION  # so that complete gets as far as checking
+            db.commit()
             timeline.clear()
             assert send().status_code in (200, 204), name
             # One reading, after the lock: every write of the request uses it.

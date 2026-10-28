@@ -267,6 +267,27 @@ else's game stop at `404` and cost its owner nothing.
 | Bad index or value | `422` |
 | Over the rate limit | `429` |
 
+### `DELETE /api/games/{id}/cells`
+
+Clears the grid: every cell the player filled is emptied, and `state` is the
+givens again (D27). No body.
+
+    ← 204
+
+Not a restart (D3): `started_at`, `submission_count`, `active_seconds` and the
+official clock are untouched. Like an input, it is activity — it moves
+`last_activity_at` and adds active time by the same rule — and it never reads
+`puzzle_solutions`.
+
+Rate limit: one input from the game's bucket (D22), taken after ownership.
+
+| Condition | Response |
+|---|---|
+| Not the caller's game, or no such game | `404 game_not_found` |
+| Game already completed | `409 game_completed` |
+| Game closed by rollover | `410 game_closed` |
+| Over the rate limit | `429` |
+
 ### `POST /api/games/{id}/heartbeat`
 
     ← 204
