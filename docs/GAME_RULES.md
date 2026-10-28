@@ -26,7 +26,9 @@ starting the clock.
 
 - A user may start at most one game session per (user, puzzle).
 - **A game session can never be restarted, reset or deleted.** Starting is
-  irreversible.
+  irreversible. Clearing the grid is not a reset: the player may empty every
+  cell they filled, and the session — its `started_at`, its official clock,
+  its submissions and its active time — stays exactly as it was (§3).
 - A user may hold sessions for all three difficulties of the same day.
 - A session may only be created for **today's** puzzle. Once the date rolls over
   in Europe/Berlin, the previous day's puzzles are locked: no new session may
@@ -103,6 +105,15 @@ empty; the request is within the rate limit.
 The server does **not** tell the client whether a value matches the solution.
 See `SECURITY.md` § "The solution oracle" for why this distinction is
 load-bearing.
+
+### Clearing the grid
+
+The player may empty every cell they filled at once, putting the grid back to
+its givens. It is an input in every respect: legal under the same conditions
+(the session is the caller's, not completed, not closed), counted against the
+same rate limit, and activity like any other. It changes nothing but the
+cells: the clock goes on, and the submissions and active time already counted
+stay counted.
 
 ## 4. Completion and timing
 
