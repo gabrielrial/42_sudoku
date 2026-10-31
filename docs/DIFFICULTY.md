@@ -103,13 +103,22 @@ jobs; do not merge them.
 A puzzle solvable by naked singles alone is still Easy; there is no fourth tier
 below Easy.
 
-### Easy starts with 32 to 42 clues
+### Clue ranges
 
-The grade is still the technique, never the count. But a *minimal* Easy — 23
-or so clues, every one needed — is a long, sparse grid that beginners find
-hard however simple each step is. So an Easy puzzle is also required to start
-with **between 32 and 42 givens**, inclusive. Medium and Hard have no such
-range: they stay as sparse as uniqueness allows.
+The grade is still the technique, never the count. But a *minimal* puzzle —
+23 or so clues, every one needed — is a long, sparse grid that feels hard
+however simple each step is. So every tier also has a range of givens to start
+with, inclusive:
+
+| Tier | Givens |
+|---|---|
+| **Easy** | 32 to 42 |
+| **Medium** | 32 to 36 |
+| **Hard** | 30 to 38 |
+
+A Medium with 32 to 36 givens still needs a tier-2 technique, and a Hard with
+30 to 38 a tier-3 one: the extra givens are chosen so that they do
+(generation, step 5).
 
 ### The discard rule
 
@@ -131,6 +140,15 @@ table gains a row — the design already accommodates that.
    run the grader. An Easy candidate outside 32 to 42 givens is discarded.
 4. If the grade matches the requested tier, accept. Otherwise discard the whole
    candidate and start again from step 1.
+5. For Medium and Hard, draw a target uniformly from the tier's range (32 to
+   36, 30 to 38), then give givens back: cells of the solution, in random
+   order, each kept only if the puzzle still grades the same tier, until the
+   target is reached. A candidate that ends outside the range is discarded.
+   Random digging almost never stops on a Medium that rich by itself
+   (measured: 2 in 150 grids at 32 givens, none from 34 on); giving givens
+   back finds one every time, in about half a second. A Hard reaches 38
+   givens 19 times in 20, in under a tenth of a second; finding the minimal
+   Hard to start from still takes most of the time.
 
 Step 4 is a retry loop and that is acceptable: generation runs offline, days
 ahead of play (`DECISIONS.md` A1), so no user ever waits on it. Easy is expected
