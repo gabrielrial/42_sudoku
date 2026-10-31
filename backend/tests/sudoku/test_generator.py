@@ -3,8 +3,17 @@ import random
 import pytest
 
 from sudoku.board import has_duplicate, parse_grid
-from sudoku.generator import EASY_CLUES, GENERATOR_VERSION, GenerationError, dig, generate
-from sudoku.grader import Tier
+from sudoku.generator import (
+    EASY_CLUES,
+    GENERATOR_VERSION,
+    HARD_CLUES,
+    MEDIUM_CLUES,
+    GenerationError,
+    dig,
+    generate,
+    refill,
+)
+from sudoku.grader import Tier, grade
 from sudoku.solver import count_solutions, random_full_grid
 
 
@@ -51,13 +60,61 @@ def test_easy_givens_spread_over_the_range():
     assert len(counts) >= 5
 
 
-@pytest.mark.parametrize("tier", [Tier.MEDIUM, Tier.HARD])
-def test_medium_and_hard_stay_minimal(tier: Tier) -> None:
-    givens = generate(tier, seed=1).givens
-    for cell, ch in enumerate(givens):
-        if ch != "0":
-            fewer = givens[:cell] + "0" + givens[cell + 1 :]
-            assert count_solutions(fewer) == 2, f"given at {cell} was removable"
+@pytest.mark.parametrize("seed", range(8))
+def test_a_medium_puzzle_starts_with_32_to_36_givens_and_is_still_medium(seed: int) -> None:
+    # DIFFICULTY.md: more to start from, the same tier-2 technique required.
+    puzzle = generate(Tier.MEDIUM, seed=seed)
+
+    assert puzzle.clue_count in MEDIUM_CLUES
+    assert puzzle.grade.tier is Tier.MEDIUM
+    assert count_solutions(puzzle.givens) == 1
+    assert all(g in ("0", s) for g, s in zip(puzzle.givens, puzzle.solution, strict=True))
+
+
+def test_the_medium_range_is_32_to_36_inclusive():
+    assert (min(MEDIUM_CLUES), max(MEDIUM_CLUES)) == (32, 36)
+
+
+def test_medium_givens_spread_over_the_range():
+    counts = {generate(Tier.MEDIUM, seed=seed).clue_count for seed in range(15)}
+    assert len(counts) >= 3
+
+
+def test_refilling_takes_back_every_clue_that_would_make_it_easier():
+    # Asked for far more givens than a Medium can have: it stops short, still Medium.
+    rng = random.Random(0)
+    while True:
+        solution = random_full_grid(rng)
+        minimal = dig(solution, rng)
+        result = grade(minimal)
+        if result is not None and result.tier is Tier.MEDIUM:
+            break
+
+    filled = refill(minimal, solution, rng, Tier.MEDIUM, keep=60)
+
+    result = grade(filled)
+    assert result is not None and result.tier is Tier.MEDIUM
+    assert sum(ch != "0" for ch in minimal) < sum(ch != "0" for ch in filled) < 60
+    assert all(g in ("0", s) for g, s in zip(filled, solution, strict=True))
+
+
+# Seeds that find a Hard in few attempts: a Hard takes about 14 s on average.
+QUICK_HARD_SEEDS = (1006, 1016, 1018)
+
+
+@pytest.mark.parametrize("seed", QUICK_HARD_SEEDS)
+def test_a_hard_puzzle_starts_with_30_to_38_givens_and_is_still_hard(seed: int) -> None:
+    # DIFFICULTY.md: more to start from, the same tier-3 technique required.
+    puzzle = generate(Tier.HARD, seed=seed)
+
+    assert puzzle.clue_count in HARD_CLUES
+    assert puzzle.grade.tier is Tier.HARD
+    assert count_solutions(puzzle.givens) == 1
+    assert all(g in ("0", s) for g, s in zip(puzzle.givens, puzzle.solution, strict=True))
+
+
+def test_the_hard_range_is_30_to_38_inclusive():
+    assert (min(HARD_CLUES), max(HARD_CLUES)) == (30, 38)
 
 
 def test_a_seed_reproduces_its_puzzle():

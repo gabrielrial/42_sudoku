@@ -354,7 +354,7 @@ Decided 2026-10-27, from playing the first Easy puzzles.
 Every puzzle was dug to minimal, so an Easy started with 23 to 26 givens: each
 step a single, but a long, sparse grid that felt hard. Easy now stops digging
 at a target drawn per puzzle from 32 to 42, inclusive, and is discarded if it
-ends outside that range (`DIFFICULTY.md`, "Easy starts with 32 to 42 clues").
+ends outside that range (`DIFFICULTY.md`, "Clue ranges").
 The grade is unchanged — still the hardest technique required, and an Easy
 still needs nothing beyond tier 1. Medium and Hard stay minimal.
 
@@ -385,6 +385,39 @@ game's history can be wiped, only the cells.
   Inputs still waiting are dropped, since the grid is about to be emptied;
   inputs typed afterwards are sent after it; an input already sent before the
   clear is never retried after it, or it would undo the clear.
+
+### D28 — Medium puzzles start with 32 to 36 clues
+Decided 2026-10-28, from playing the first Medium puzzles.
+
+The same complaint as D26, one tier up: a minimal Medium, 23 to 26 givens,
+felt out of reach. A Medium now starts with 32 to 36 givens, drawn per puzzle,
+and still needs a tier-2 technique — a pair, a pointing pair or a box-line
+reduction (`DIFFICULTY.md`, "Clue ranges"). Hard stayed minimal until D29.
+
+Stopping the dig early, as Easy does, does not work here: dug to 32 givens,
+2 of 150 random grids graded Medium; from 34 on, none — that many givens
+almost always leave singles enough. So a minimal Medium is found first, then
+given cells of its solution back one at a time, each kept only if the puzzle
+still grades Medium. Measured: 15 of 15 found at every target from 30 to 38,
+about half a second each. A given taken from the solution cannot cost
+uniqueness, only difficulty, and the grade checks that.
+
+The ranges overlap: a day's Medium may start with more givens than its Easy.
+The tier is the technique, not the count. Generator version `"3"`.
+
+### D29 — Hard puzzles start with 30 to 38 clues
+Decided 2026-10-31, at the developer's request.
+
+D28 again, one tier up: a minimal Hard, 23 or so givens, was too sparse to
+get into. A Hard now starts with 30 to 38 givens, drawn per puzzle, and still
+needs a tier-3 technique — a triple or an X-Wing (`DIFFICULTY.md`, "Clue
+ranges"). Every tier now has a range; none is minimal.
+
+The same refill as D28: a minimal Hard is found first, then given cells of its
+solution back, each kept only if the puzzle still grades Hard. Measured on 20
+minimal Hards: 20 reach 30 givens, 19 reach 38, each in under a tenth of a
+second; the one that falls short is discarded and the search goes on. The
+hardest technique is unchanged by the refill. Generator version `"4"`.
 
 ### Q1 — The activity rule behind D6 (answered)
 
