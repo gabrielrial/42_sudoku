@@ -32,6 +32,7 @@ window.addEventListener("beforeunload", (event) => {
 export function GamePage({ gameId }: { gameId: string }) {
   const [game, setGame] = useState<GameView | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Only the latest load may show its answer: a slow one started earlier,
   // or by a page since left, is dropped.
@@ -51,8 +52,16 @@ export function GamePage({ gameId }: { gameId: string }) {
     load();
     return () => {
       generation.current++;
+      setNotice(null);
     };
   }, [load]);
+
+  // The screen emptied at once and the server said no: show what it holds.
+  const onClearRefused = useCallback(() => {
+    setNotice(CLEAR_REFUSED);
+    load();
+  }, [load]);
+  const dismissNotice = useCallback(() => setNotice(null), []);
 
   if (problem !== null) {
     return (
@@ -70,10 +79,19 @@ export function GamePage({ gameId }: { gameId: string }) {
         <BackLink />
       </nav>
       {/* A new game is a new board: nothing carried over from another. */}
-      <LiveGame key={game.game_id} game={game} onFinishedElsewhere={load} />
+      <LiveGame
+        key={game.game_id}
+        game={game}
+        notice={notice}
+        onFinishedElsewhere={load}
+        onClearRefused={onClearRefused}
+        onInput={dismissNotice}
+      />
     </>
   );
 }
+
+const CLEAR_REFUSED = "The grid could not be cleared. These are the digits the server still holds.";
 
 const SAVING: Record<QueueStatus, string> = {
   saved: "All inputs saved.",
@@ -92,7 +110,19 @@ interface Solved {
   activeSeconds: number;
 }
 
-function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedElsewhere: () => void }) {
+function LiveGame({
+  game,
+  notice,
+  onFinishedElsewhere,
+  onClearRefused,
+  onInput,
+}: {
+  game: GameView;
+  notice: string | null;
+  onFinishedElsewhere: () => void;
+  onClearRefused: () => void;
+  onInput: () => void;
+}) {
   const givens = useMemo(() => parseGrid(game.givens), [game.givens]);
   const [values, setValues] = useState<Grid>(() => parseGrid(game.state));
   const queue = useMemo(() => queues.queueFor(game.game_id), [game.game_id]);
@@ -125,8 +155,9 @@ function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedEls
       queue.subscribe((event) => {
         setSaving(event.status);
         if (event.stopped !== null) onStopped(event.stopped);
+        if (event.clearRefused) onClearRefused();
       }),
-    [queue, onStopped],
+    [queue, onStopped, onClearRefused],
   );
 
   useEffect(() => {
@@ -137,10 +168,11 @@ function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedEls
   const write = useCallback(
     (cell: number, value: number) => {
       setChecked(null); // an answer about the grid before this input is stale
+      onInput();
       setValues((current) => setCell(current, givens, cell, value));
       queue.write(cell, value === 0 ? null : value);
     },
-    [givens, queue],
+    [givens, queue, onInput],
   );
 
   // Clearing takes a second tap, like starting (D25): it cannot be undone,
@@ -148,6 +180,7 @@ function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedEls
   function clear() {
     setConfirmingClear(false);
     setChecked(null);
+    onInput();
     setValues(givens);
     queue.clear();
   }
@@ -184,6 +217,11 @@ function LiveGame({ game, onFinishedElsewhere }: { game: GameView; onFinishedEls
       note={note}
       onWrite={write}
     >
+      {notice !== null && (
+        <p className="check__answer check__answer--problem" role="alert">
+          {notice}
+        </p>
+      )}
       {playing && full && (
         <div className="check">
           <button type="button" className="button" disabled={checking} onClick={check}>

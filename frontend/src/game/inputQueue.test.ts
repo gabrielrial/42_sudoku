@@ -238,7 +238,7 @@ describe("the input queue", () => {
     queue.write(2, 6); // ignored: the game is over
     expect(server.sent).toEqual([[0, 4]]);
     expect(queue.stopped).toBe(reason);
-    expect(events.at(-1)).toEqual({ status: "saved", stopped: reason }); // nothing left waiting
+    expect(events.at(-1)).toEqual({ status: "saved", stopped: reason, clearRefused: false }); // nothing left waiting
     await expect(queue.idle()).resolves.toBe(false);
   });
 
@@ -357,6 +357,33 @@ describe("clearing the grid", () => {
     await line.releaseAll();
     await queue.idle();
     expect(idle).toBe(true);
+  });
+
+  it("says so when a clear is refused for good, and goes on with what came after", async () => {
+    const line = fakeLine([new ApiError("forbidden_origin", 403, "…")]);
+    const queue = createInputQueue(line.put, fakeSleep().sleep, line.clearAll);
+    const events: QueueEvent[] = [];
+    queue.subscribe((event) => events.push(event));
+
+    queue.clear();
+    queue.write(5, 9);
+
+    expect(await queue.idle()).toBe(true);
+    expect(line.log).toEqual(["clear", "5=9"]); // once: retrying cannot help
+    expect(events.filter((event) => event.clearRefused)).toHaveLength(1);
+    expect(events.at(-1)?.clearRefused).toBe(false);
+  });
+
+  it("says nothing of the kind about an input refused for good", async () => {
+    const line = fakeLine([new ApiError("cell_is_given", 422, "…")]);
+    const queue = createInputQueue(line.put, fakeSleep().sleep, line.clearAll);
+    const events: QueueEvent[] = [];
+    queue.subscribe((event) => events.push(event));
+
+    queue.write(0, 1);
+
+    await queue.idle();
+    expect(events.some((event) => event.clearRefused)).toBe(false);
   });
 
   it("stops like an input when the game is over, and is ignored after", async () => {

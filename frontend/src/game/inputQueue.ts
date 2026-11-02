@@ -27,6 +27,9 @@ export type QueueStatus =
 export interface QueueEvent {
   status: QueueStatus;
   stopped: StopReason | null;
+  /** The server refused a clear for good: it still holds the digits that the
+   * screen, having emptied them at once, no longer shows. */
+  clearRefused: boolean;
 }
 
 export interface InputQueue {
@@ -77,9 +80,9 @@ export function createInputQueue(
   let stopped: StopReason | null = null;
   let running = false;
 
-  function emit(next: QueueStatus) {
+  function emit(next: QueueStatus, clearRefused = false) {
     status = next;
-    const event = { status, stopped };
+    const event = { status, stopped, clearRefused };
     listeners.forEach((listener) => listener(event));
   }
 
@@ -106,6 +109,7 @@ export function createInputQueue(
     while (stopped === null && (clearing || pending.size > 0)) {
       let send: () => Promise<void>;
       let retry: () => void;
+      const sendingClear = clearing;
       if (clearing) {
         clearing = false;
         send = clearAll;
@@ -139,8 +143,10 @@ export function createInputQueue(
           continue;
         }
         if (error instanceof ApiError && error.status < 500) {
-          // Refused for good (a given, an invalid value): the interface never
-          // sends one, and retrying cannot change the answer. Dropped.
+          // Refused for good, and retrying cannot change the answer. An input
+          // (a given, an invalid value) the interface never sends: dropped. A
+          // clear it does send, so whoever shows the grid has to hear of it.
+          if (sendingClear) emit("saving", true);
           continue;
         }
         // No answer, or the server failed: the input is not lost, only late.
