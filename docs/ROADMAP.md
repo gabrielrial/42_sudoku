@@ -1,10 +1,15 @@
 # Roadmap
 
-**Current phase: Phase 4 — authentication, in progress.** Phases 0 to 2 are
-on `main`. Phase 3 has not been started: Phase 4 was begun before it.
+**Current phase: Phase 6 — front end; its exit condition is met (2026-11-02),
+and the push and the pull request of `feature/frontend-mvp` are not done yet.**
+Phases 0 to 5 are merged: Stages 1 to 5 of `PLAN.md` through pull requests
+#11 to #14, up to `origin/main`. The local `main` is behind
+`origin/main` and has not pulled them. Phase 6 is only on `feature/frontend-mvp`,
+which is not merged. Next: Phase 7.
 
 A demo board — one fixed puzzle you can fill in, nothing else — was pulled
-forward from Phase 6 at the developer's request. See `DECISIONS.md` A5.
+forward from Phase 6 at the developer's request. See `DECISIONS.md` A5. It
+is gone: `demoPuzzle.ts` was deleted in Stage 6b.
 
 Each phase gets a branch, ends in a pull request with green CI, and is reviewed
 before merge. Do not start a phase before the previous one is merged.
@@ -43,7 +48,7 @@ Exit conditions, both met: `docker compose up` gives a running application with
 Five problems were hit getting here. They are written up in `LESSONS.md`, which
 is worth a minute before starting Phase 2.
 
-## Phase 2 — Sudoku engine (on `main`; one verification open)
+## Phase 2 — Sudoku engine (complete)
 
 Pure Python. No framework, no database, no HTTP. Board representation,
 candidate handling, the technique ladder and grader, a separate counting solver
@@ -65,10 +70,13 @@ Status: built in `backend/src/sudoku/` — `board`, `techniques`, `grader`,
 
     cd backend && PYTHONPATH=src python -m sudoku generate --difficulty hard
 
-Measured on this generator: about 50 ms per candidate puzzle; of minimal
-puzzles, roughly 41% Easy, 17% Medium, 0.5% Hard and 41% discarded as beyond
-tier 3. Easy and Medium come in under a second, Hard in about ten seconds on
-average — acceptable offline, so no digging bias yet.
+Measured on the first generator, which dug every puzzle to minimal: about
+50 ms per candidate; of minimal puzzles, roughly 41% Easy, 17% Medium, 0.5% Hard
+and 41% discarded as beyond tier 3. Since then every tier has a clue range
+(`DECISIONS.md` D26, D28, D29; `DIFFICULTY.md`, "Clue ranges"). Measured on the
+current generator, version `"4"`: Easy takes 1.01 attempts on average and about
+7 ms; Medium 6.1 attempts and 0.38 s; Hard 238 attempts on average, 862 at most,
+about 14 s. Acceptable offline, so no digging bias yet.
 
 The published-puzzle checks of `DIFFICULTY.md` landed on 2026-10-22 (Stage 3 of
 `PLAN.md`): thirteen references rated by SudokuWiki's solver, in agreement with
@@ -87,7 +95,7 @@ with their constraints; `ensure_puzzles`, which fills what is missing and
 verifies every puzzle before storing it; the `puzzles` compose service, which
 runs it every hour for seven days ahead (Q11).
 
-## Phase 4 — Authentication (in progress)
+## Phase 4 — Authentication (complete)
 
 The 42 OAuth2 flow: redirect, `state` + PKCE, callback, `/v2/me`, local user
 creation, the application session — a short access JWT and a rotating refresh
@@ -101,21 +109,22 @@ Exit: a real 42 login works locally; after logout the refresh token is
 rejected (the access token lapses within 15 minutes, D15); after the user is
 deleted both are rejected; the full test suite passes with no network access.
 
-Status:
+Status: complete. Merged into `origin/main` (pull requests #6, #9, #10, #11;
+the branch `feature/identity-provider` directly).
 
-- On `main`: the session (access and refresh tokens, rotation, theft
-  detection, logout, `GET /api/users/me`); the `Origin` check against CSRF;
-  the login rate limiter (D17); the common error
-  envelope; `users` keyed on the 42 identity; `oauth_states` with the PKCE
-  helpers.
-- On `feature/oauth-completion` (Stage 1 of `PLAN.md`), not merged yet: the
-  whole sign-in. PKCE sent to 42 (D18); the `state` cookie against login
-  CSRF; every failure a redirect with `?login_error=`; returning users
-  refreshed and reassigned logins resolved through 42 (D21); `/login`
-  rate-limited; `APP_ENV` required and `?as=<login>` for the fake provider
-  (D19). Tested through the fake provider and a simulated 42, without network.
-- Then: register the application with 42 (Q3) and sign in for real, including
-  the PKCE check in D18.
+- The session (access and refresh tokens, rotation, theft detection, logout,
+  `GET /api/users/me`); the `Origin` check against CSRF; the login rate limiter
+  (D17); the common error envelope; `users` keyed on the 42 identity;
+  `oauth_states` with the PKCE helpers.
+- The whole sign-in (Stage 1 of `PLAN.md`): PKCE sent to 42 (D18); the `state`
+  cookie against login CSRF; every failure a redirect with `?login_error=`;
+  returning users refreshed and reassigned logins resolved through 42 (D21);
+  `/login` rate-limited (over its limit it redirects, D23); `APP_ENV` required
+  and `?as=<login>` for the fake provider (D19). Tested through the fake
+  provider and a simulated 42, without network.
+- Signed in for real with a 42 account (first on 2026-10-21). The check D18
+  asked for was made on 2026-11-02: 42 accepted a wrong PKCE verifier, so it
+  does not enforce PKCE (`SECURITY.md`). The verifier is still sent.
 - A username/password login was built first, as a learning step towards the
   session design, and removed (D16).
 
@@ -131,10 +140,18 @@ Status (2026-10-24, Stage 5 of `PLAN.md`): built. Today's puzzles, starting,
 resuming, inputs, heartbeats and completion, each with its rate limit and its
 authorisation, and a test that walks them all looking for the solution.
 
-## Phase 6 — Frontend
+## Phase 6 — Frontend (exit condition met; not merged)
 
 Login flow, home page, board, input, resume, heartbeat, timer display,
 completion state.
+
+Status (2026-11-02, Stage 6 of `PLAN.md`): built on `feature/frontend-mvp`,
+which has been neither pushed in full nor opened as a pull request. The exit
+condition below was met by hand with a real 42 account on the development
+setup: Easy and Medium games played to completion with their times persisted,
+and a game left (signing out) and reopened with its digits intact. No Hard game
+has been finished yet; it uses the same code path, so this does not hold up the
+exit. Added on the way: "Clear the grid" (D27) and clue ranges for every tier.
 
 The signed-in home page has five entries (`DECISIONS.md` Q7): Easy, Medium,
 Hard, My statistics, Leaderboard. **Only the three difficulties are functional

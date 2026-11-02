@@ -45,8 +45,8 @@ responsibility, one database.
 Two processes run this code, as two compose services built from one image:
 `api` serves HTTP; `puzzles` runs `python -m app.jobs.generate_puzzles --every
 3600`, which keeps today and the next days stocked with puzzles
-(`DECISIONS.md` Q11). Generating a Hard takes about 16 seconds of CPU, so it
-never happens inside a request.
+(`DECISIONS.md` Q11). Generating a Hard takes about 14 seconds of CPU on average
+(`DIFFICULTY.md`), so it never happens inside a request.
 
 What that package must do is specified in `DIFFICULTY.md`.
 

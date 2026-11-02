@@ -31,6 +31,11 @@ these are reviewed line by line by the developer before they are accepted
 Update 2026-10-21: Stage 1's code is done on `feature/oauth-completion`
 (1a–1f); items 1–9 below are fixed there. Pytest: 312 passed, 2 skipped.
 
+Update 2026-11-02: Stages 1 to 5 are merged into `origin/main` (pull requests
+#11 to #14); the local `main` has not pulled them. Stage 6 is on
+`feature/frontend-mvp`, not pushed in full and without a pull request. The
+bullets above describe 2026-10-20 and are history.
+
 ## Known problems, by impact
 
 Necessary — bugs and security holes:
@@ -65,26 +70,28 @@ Necessary — bugs and security holes:
 
 Desirable:
 
-- `Settings()` built directly in `routers/auth.py` and `get_provider`, instead
-  of `get_settings()`; several modules read settings at import time.
-- The callback commits twice (user, then token): not atomic.
+- ~~`Settings()` built directly in `routers/auth.py` and `get_provider`, instead
+  of `get_settings()`~~ — fixed 2026-10-21 (Stage 1a); several modules still
+  read settings at import time.
+- ~~The callback commits twice (user, then token): not atomic.~~ — fixed
+  2026-10-21 (Stage 1c): one commit.
 - Typos and Spanish in docstrings (`identity_provider.py`, `dependencies.py`).
 - `refresh_tokens` and expired `oauth_states` are never purged.
-- Frontend Dockerfile uses `npm install`, not `npm ci`.
+- ~~Frontend Dockerfile uses `npm install`, not `npm ci`.~~ — fixed 2026-10-21 (Stage 2)
 - Merged branches never deleted.
 
-## Code and docs that disagree (as on `main`)
+## Code and docs that disagree (as on `main`, 2026-10-20; struck rows checked 2026-11-02)
 
 | Where | Disagreement |
 |---|---|
-| `API.md`, `DATA_MODEL.md`, `SECURITY.md` vs `auth.py` | `state` cookie, PKCE, error redirects, refreshing a returning user, `/login` rate limit: documented, not built |
+| ~~`API.md`, `DATA_MODEL.md`, `SECURITY.md` vs `auth.py`~~ | ~~`state` cookie, PKCE, error redirects, refreshing a returning user, `/login` rate limit: documented, not built~~ — fixed 2026-10-21 (Stage 1) |
 | ~~`GAME_RULES.md` §4, D13 vs `API.md`, `LESSONS.md` D~~ | ~~"the client submits a full grid" vs `/complete` with no body~~ — fixed 2026-10-24 |
 | ~~Q12 vs `DATA_MODEL.md`~~ | ~~`failed_attempts` vs `submission_count`~~ — fixed 2026-10-24 |
 | ~~Q1 vs `clock.py`, `API.md`~~ | ~~"all values are configuration" vs constant `ROLLOVER_GRACE_HOURS` and a fixed 90 s heartbeat gap~~ — fixed 2026-10-24: all of them are settings |
 | `DATA_MODEL.md` | ~~`game_sessions.user_id BIGINT` vs `users.id` `SERIAL`~~ — fixed 2026-10-24; `TEXT` (doc) vs `VARCHAR` (models of `users`, `oauth_states`, `refresh_tokens`) still differs |
-| `.env.example` | redirect on port 8001 vs `API_PORT=8000`; comment says the fake provider is refused outside development, code refuses it only in production |
-| `DECISIONS.md`, Open | "nothing here blocks Phases 1–6", but Q11 shapes Phase 3 |
-| `DIFFICULTY.md` | published-puzzle verification required, not done |
+| `.env.example` | redirect on port 8001 vs `API_PORT=8000`; comment says the fake provider is refused outside development, code refuses it only in production (`config.py`). Not re-checked 2026-11-02: the file could not be read in that session |
+| ~~`DECISIONS.md`, Open~~ | ~~"nothing here blocks Phases 1–6", but Q11 shapes Phase 3~~ — fixed 2026-10-23 (Q11 answered) |
+| ~~`DIFFICULTY.md`~~ | ~~published-puzzle verification required, not done~~ — fixed 2026-10-22 (Stage 3) |
 | `ARCHITECTURE.md` | draws modules by domain (auth, users, puzzles, games); the code is organised by layer (`api/`, `services/`, `database/`) |
 
 ## Not verifiable from here
@@ -116,8 +123,9 @@ skip count read (0 once Stage 3 lands).
 
 ### Stage 1 — Finish the 42 sign-in 🔑🔐 · `feature/oauth-completion`
 
-**Code done 2026-10-21 (1a–1f).** Left for the developer: register the
-app, a real sign-in, the wrong-verifier check. Two changes to the plan on
+**Code done 2026-10-21 (1a–1f).** Registering the app and a real sign-in
+were done by the developer (first sign-in 2026-10-21); the wrong-verifier check
+(D18) on 2026-11-02: 42 accepted it, so it does not enforce PKCE. Two changes to the plan on
 the way: 1d asks 42 for a stale holder's current login instead of keeping
 the stored one (D21); the fake provider redirects to the callback by path
 rather than a URL taken from the settings.
@@ -132,8 +140,8 @@ rather than a URL taken from the settings.
 | 1f | P4: `APP_ENV` required, with no default in `Settings` or compose, so a deployment that forgets it does not start; fake provider honours `?as=<login>` (validated format, fake users kept apart from real `intra_id`s), ignored outside fake mode | missing `APP_ENV` refuses to start; fake refused in production; `?as=` gives two distinct users; `?as=` ignored by the real provider |
 
 Done: login → callback → `/api/users/me` through the fake provider in one
-test; every case in `API.md` tested. Then, by the developer: register the app
-(Q3), a real sign-in, D18's wrong-verifier check.
+test; every case in `API.md` tested. Then, by the developer, all done: the app
+registered (Q3), a real sign-in, D18's wrong-verifier check (2026-11-02).
 
 ### Stage 2 — Test and tooling floor · `chore/test-hardening`
 
@@ -239,12 +247,36 @@ carries the solution. Done: the whole loop works through the API alone.
   with the count; solved shows both times; closed is read-only.
 - 6e (asked for while testing, 2026-10-27) "Clear the grid" (D27): one
   request that empties every filled cell, through the input queue; not a
-  restart, so the clock and the submissions are untouched.
+  restart, so the clock and the submissions are untouched. **Done
+  2026-10-28** (`DELETE /api/games/{id}/cells`, rules in `GAME_RULES.md`).
 - 6d Check at 375 px. **Done 2026-10-26**, in the browser at 375×812 with a
   throwaway dev user (deleted afterwards): sign-in page, home, start with its
   confirmation and cancel, an input surviving a reload, a wrong check, a right
   one, the home page showing it solved, back and forward, an unknown path,
   sign-out. No horizontal scroll anywhere; nothing needed changing.
+
+After 6e, still within the stage:
+
+- Clue ranges (2026-10-27 to 2026-10-31), from playing the first puzzles:
+  minimal puzzles were too sparse. Easy 32 to 42 givens (D26, generator
+  version `"2"`), Medium 32 to 36 (D28, `"3"`), Hard 30 to 38 (D29, `"4"`).
+  Measured on version `"4"`: Easy 1.01 attempts and about 7 ms, Medium 6.1
+  attempts and 0.38 s, Hard 238 attempts on average, 862 at most, about 14 s
+  (`DIFFICULTY.md`). The development database's puzzles from 2026-10-29 on were
+  regenerated by hand.
+- Review findings (the `reviewer` agent), fixed on 2026-11-02: the access log
+  no longer writes the query of any URL, so the authorization code and `state`
+  stay out of it, and database errors no longer quote bound parameters such as
+  `state` and the PKCE verifier (`SECURITY.md`); board rows keep their height
+  when empty; a refused clear shows the server's grid again. An earlier review
+  was addressed on 2026-10-27.
+
+**Done 2026-11-02.** Exit condition met by hand with a real 42 account on the
+development setup: Easy and Medium games played to completion with their times
+persisted, and a game left (signing out) and reopened with its digits intact.
+No Hard game has been finished yet; it uses the same code path. 6d (375 px)
+was checked on 2026-10-26 with the fake provider. Not done: the push and the
+pull request of `feature/frontend-mvp`.
 
 Done: `ROADMAP.md` Phase 6 exit, by hand with the fake provider and with 42.
 
@@ -255,6 +287,12 @@ front end served per P3 — answering every client path (`/games/…`) with
 `index.html`, as Vite's dev server does, or a reload of a game is a `404` — `FORWARDED_ALLOW_IPS`, HTTPS or `COOKIE_SECURE` per
 P2, stricter fake-provider guard per P4, purge of expired `refresh_tokens` and
 `oauth_states` in the scheduled job.
+
+Two logging points. A proxy in front of the API must not log query strings:
+the sign-in callback carries the authorization code and `state` there
+(`SECURITY.md`). And the Vite proxy in `frontend/vite.config.ts`, which logs
+whole URLs when the API is down, is development only; it goes away with the
+deployment, because Vite is not there.
 
 Review D5's login limit there: it is per IP, and a whole 42 campus usually
 reaches the internet through one public address — five sign-ins a minute
