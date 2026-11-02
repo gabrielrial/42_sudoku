@@ -90,11 +90,12 @@ Desirable:
 ## Not verifiable from here
 
 - 42's OAuth guide (`api.intra.42.fr/apidoc/guides/web_application_flow`)
-  redirects to the intra login. Whether 42 checks PKCE is unconfirmed.
+  redirects to the intra login.
 - Confirmed by the developer's first real sign-in (2026-10-21): 42 accepts the
   form-encoded code exchange (RFC 6749 §4.1.3), and `/v2/me` carries the
   fields the code reads (`campus_users[].is_primary`, `campus[]`).
-- D18's wrong-verifier test needs the registered application: developer only.
+- Confirmed by the developer on 2026-11-02: 42 accepts a wrong PKCE verifier,
+  so it does not enforce PKCE (D18).
 
 ---
 
