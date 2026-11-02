@@ -3,7 +3,7 @@
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.access_log import hide_callback_query
+from app.access_log import hide_queries
 from app.api.csrf import require_frontend_origin
 from app.api.routers import health
 from app.api.routers.auth import router as auth_router
@@ -17,7 +17,7 @@ from app.services.rate_limit import RateLimiter
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    hide_callback_query()
+    hide_queries()
 
     app = FastAPI(
         title="Sudoku 42",
