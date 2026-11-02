@@ -235,6 +235,13 @@ To be checked with the real application in Phase 4: exchange a code with a
 **wrong** verifier. If 42 accepts it, PKCE protects nothing against 42, and
 `SECURITY.md` must say so.
 
+Checked 2026-11-02, by the developer, with a real sign-in: the challenge was
+sent as usual and the exchange carried a well-formed verifier that did not
+match it. 42 answered `200` and issued a token, so **42 does not enforce
+PKCE**. It stays in the code: it costs nothing, it was part of the point, and
+it starts protecting if 42 ever enforces it. What protects the exchange today
+is the client secret.
+
 ### D19 — The environment is always declared; the fake provider can play anyone
 Decided 2026-10-20 (`PLAN.md` P4).
 
