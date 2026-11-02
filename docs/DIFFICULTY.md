@@ -151,8 +151,9 @@ table gains a row — the design already accommodates that.
    Hard to start from still takes most of the time.
 
 Step 4 is a retry loop and that is acceptable: generation runs offline, days
-ahead of play (`DECISIONS.md` A1), so no user ever waits on it. Easy is expected
-to land on most attempts and Hard to take several. If Hard generation proves too
+ahead of play (`DECISIONS.md` A1), so no user ever waits on it. Easy lands on
+almost every attempt; Hard takes a couple of hundred (measured over 12 seeds: 238
+on average, 862 at most, about 14 seconds each). If Hard generation proves too
 slow, bias the digging order or the starting grid — **do not weaken the grader
 to make puzzles easier to find.**
 
