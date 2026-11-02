@@ -121,7 +121,7 @@ def generate(tier: Tier, seed: int, max_attempts: int = 2000) -> Puzzle:
     """A puzzle graded exactly ``tier``, with a unique solution.
 
     Raises ``GenerationError`` if ``max_attempts`` candidates are built and none
-    of them grades as ``tier``.
+    of them grades as ``tier`` with its givens in the tier's range.
     """
     rng = random.Random(seed)
     for attempt in range(1, max_attempts + 1):

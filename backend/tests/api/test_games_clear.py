@@ -124,6 +124,19 @@ def test_it_is_activity_like_an_input(
     assert game.active_seconds == 30  # a short gap: play, as for any input
 
 
+def test_the_active_time_already_counted_stays(
+    db: Session, signed_in: TestClient, game_id: str, fixed_clock: Callable[[datetime], None]
+) -> None:
+    _at(fixed_clock, seconds=30)
+    _put(signed_in, game_id, EMPTY[0], 4)
+    assert _stored(db, game_id).active_seconds == 30
+    _at(fixed_clock, seconds=60)
+
+    _clear(signed_in, game_id)
+
+    assert _stored(db, game_id).active_seconds == 60  # added to, never restarted
+
+
 def test_it_keeps_a_game_alive_past_midnight(
     db: Session, signed_in: TestClient, game_id: str, fixed_clock: Callable[[datetime], None]
 ) -> None:
@@ -192,6 +205,20 @@ def test_it_spends_one_input_from_the_games_budget(signed_in: TestClient, game_i
     assert refused.status_code == 429
     assert refused.headers["retry-after"] == "1"
     assert _put(signed_in, game_id, EMPTY[0], 4).status_code == 429
+
+
+def test_a_clear_refused_by_the_limit_leaves_the_grid(
+    db: Session, signed_in: TestClient, game_id: str
+) -> None:
+    app = signed_in.app
+    assert isinstance(app, FastAPI)
+    app.state.input_limiter = RateLimiter(capacity=1, refill_per_second=1, clock=lambda: 0.0)
+    assert _put(signed_in, game_id, EMPTY[0], 4).status_code == 204
+    filled = _stored(db, game_id).state
+
+    assert _clear(signed_in, game_id).status_code == 429
+
+    assert _stored(db, game_id).state == filled
 
 
 # --- the solution ------------------------------------------------------------------------------

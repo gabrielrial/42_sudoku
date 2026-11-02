@@ -2,6 +2,7 @@ import random
 
 import pytest
 
+from sudoku import generator
 from sudoku.board import has_duplicate, parse_grid
 from sudoku.generator import (
     EASY_CLUES,
@@ -66,6 +67,7 @@ def test_a_medium_puzzle_starts_with_32_to_36_givens_and_is_still_medium(seed: i
     puzzle = generate(Tier.MEDIUM, seed=seed)
 
     assert puzzle.clue_count in MEDIUM_CLUES
+    assert puzzle.grade == grade(puzzle.givens)  # of the puzzle as it ended up
     assert puzzle.grade.tier is Tier.MEDIUM
     assert count_solutions(puzzle.givens) == 1
     assert all(g in ("0", s) for g, s in zip(puzzle.givens, puzzle.solution, strict=True))
@@ -108,6 +110,7 @@ def test_a_hard_puzzle_starts_with_30_to_38_givens_and_is_still_hard(seed: int) 
     puzzle = generate(Tier.HARD, seed=seed)
 
     assert puzzle.clue_count in HARD_CLUES
+    assert puzzle.grade == grade(puzzle.givens)  # of the puzzle as it ended up
     assert puzzle.grade.tier is Tier.HARD
     assert count_solutions(puzzle.givens) == 1
     assert all(g in ("0", s) for g, s in zip(puzzle.givens, puzzle.solution, strict=True))
@@ -117,11 +120,27 @@ def test_the_hard_range_is_30_to_38_inclusive():
     assert (min(HARD_CLUES), max(HARD_CLUES)) == (30, 38)
 
 
-def test_a_seed_reproduces_its_puzzle():
-    first = generate(Tier.EASY, seed=11)
-    again = generate(Tier.EASY, seed=11)
-    assert first == again
-    assert generate(Tier.EASY, seed=12).givens != first.givens
+def test_hard_givens_differ_from_puzzle_to_puzzle():
+    assert len({generate(Tier.HARD, seed=seed).clue_count for seed in QUICK_HARD_SEEDS}) >= 2
+
+
+def test_a_candidate_that_ends_outside_its_range_is_discarded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A refill that gives nothing back leaves a minimal Medium, far below 32.
+    monkeypatch.setattr(generator, "refill", lambda givens, *_: givens)
+
+    with pytest.raises(GenerationError):
+        generate(Tier.MEDIUM, seed=0, max_attempts=50)
+
+
+@pytest.mark.parametrize(
+    ("tier", "seed"), [(Tier.EASY, 11), (Tier.MEDIUM, 11), (Tier.HARD, QUICK_HARD_SEEDS[0])]
+)
+def test_a_seed_reproduces_its_puzzle(tier: Tier, seed: int) -> None:
+    first = generate(tier, seed=seed)
+    assert generate(tier, seed=seed) == first
+    assert generate(tier, seed=seed + 1).givens != first.givens
 
 
 def test_the_puzzle_records_its_metadata():
