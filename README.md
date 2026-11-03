@@ -6,10 +6,12 @@ everyone, with authentication through the official 42 OAuth2 API.
 
 Application timezone: Europe/Berlin.
 
-**Status: Phase 4 (authentication) in progress.** The Sudoku engine generates
-and grades puzzles; sessions work, and signing in with 42 is being built. The
-front end shows one demo puzzle you can fill in, and nothing more yet. See
-`docs/ROADMAP.md`.
+**Status: the MVP is built (Phase 6), not yet merged or deployed.** The Sudoku
+engine generates and grades puzzles, stored seven days ahead; signing in with
+42 works; the front end shows today's three puzzles, saves every input, keeps
+the clock and checks the finished grid. Phases 0 to 5 are merged on GitHub
+(`origin/main`); Phase 6 is on `feature/frontend-mvp`, awaiting its pull
+request. No deployment yet. See `docs/ROADMAP.md`.
 
 ## Running it locally
 
@@ -26,7 +28,7 @@ docker compose up --build     # first run takes a few minutes
 |---|---|
 | http://localhost:8000/api/health | the backend is up |
 | http://localhost:8000/api/health/db | it reached PostgreSQL |
-| http://localhost:5173 | the demo board: one puzzle to fill in |
+| http://localhost:5173 | the application: sign in, today's puzzles |
 | http://localhost:8000/api/docs | interactive API documentation |
 
 The first time, and after every new migration, create the tables from another

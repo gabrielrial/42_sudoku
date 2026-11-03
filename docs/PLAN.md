@@ -31,6 +31,11 @@ these are reviewed line by line by the developer before they are accepted
 Update 2026-10-21: Stage 1's code is done on `feature/oauth-completion`
 (1a–1f); items 1–9 below are fixed there. Pytest: 312 passed, 2 skipped.
 
+Update 2026-11-02: Stages 1 to 5 are merged into `origin/main` (pull requests
+#11 to #14); the local `main` has not pulled them. Stage 6 is on
+`feature/frontend-mvp`, not pushed in full and without a pull request. The
+bullets above describe 2026-10-20 and are history.
+
 ## Known problems, by impact
 
 Necessary — bugs and security holes:
@@ -65,36 +70,39 @@ Necessary — bugs and security holes:
 
 Desirable:
 
-- `Settings()` built directly in `routers/auth.py` and `get_provider`, instead
-  of `get_settings()`; several modules read settings at import time.
-- The callback commits twice (user, then token): not atomic.
+- ~~`Settings()` built directly in `routers/auth.py` and `get_provider`, instead
+  of `get_settings()`~~ — fixed 2026-10-21 (Stage 1a); several modules still
+  read settings at import time.
+- ~~The callback commits twice (user, then token): not atomic.~~ — fixed
+  2026-10-21 (Stage 1c): one commit.
 - Typos and Spanish in docstrings (`identity_provider.py`, `dependencies.py`).
 - `refresh_tokens` and expired `oauth_states` are never purged.
-- Frontend Dockerfile uses `npm install`, not `npm ci`.
+- ~~Frontend Dockerfile uses `npm install`, not `npm ci`.~~ — fixed 2026-10-21 (Stage 2)
 - Merged branches never deleted.
 
-## Code and docs that disagree (as on `main`)
+## Code and docs that disagree (as on `main`, 2026-10-20; struck rows checked 2026-11-02)
 
 | Where | Disagreement |
 |---|---|
-| `API.md`, `DATA_MODEL.md`, `SECURITY.md` vs `auth.py` | `state` cookie, PKCE, error redirects, refreshing a returning user, `/login` rate limit: documented, not built |
+| ~~`API.md`, `DATA_MODEL.md`, `SECURITY.md` vs `auth.py`~~ | ~~`state` cookie, PKCE, error redirects, refreshing a returning user, `/login` rate limit: documented, not built~~ — fixed 2026-10-21 (Stage 1) |
 | ~~`GAME_RULES.md` §4, D13 vs `API.md`, `LESSONS.md` D~~ | ~~"the client submits a full grid" vs `/complete` with no body~~ — fixed 2026-10-24 |
 | ~~Q12 vs `DATA_MODEL.md`~~ | ~~`failed_attempts` vs `submission_count`~~ — fixed 2026-10-24 |
 | ~~Q1 vs `clock.py`, `API.md`~~ | ~~"all values are configuration" vs constant `ROLLOVER_GRACE_HOURS` and a fixed 90 s heartbeat gap~~ — fixed 2026-10-24: all of them are settings |
 | `DATA_MODEL.md` | ~~`game_sessions.user_id BIGINT` vs `users.id` `SERIAL`~~ — fixed 2026-10-24; `TEXT` (doc) vs `VARCHAR` (models of `users`, `oauth_states`, `refresh_tokens`) still differs |
-| `.env.example` | redirect on port 8001 vs `API_PORT=8000`; comment says the fake provider is refused outside development, code refuses it only in production |
-| `DECISIONS.md`, Open | "nothing here blocks Phases 1–6", but Q11 shapes Phase 3 |
-| `DIFFICULTY.md` | published-puzzle verification required, not done |
+| `.env.example` | redirect on port 8001 vs `API_PORT=8000`; comment says the fake provider is refused outside development, code refuses it only in production (`config.py`). Not re-checked 2026-11-02: the file could not be read in that session |
+| ~~`DECISIONS.md`, Open~~ | ~~"nothing here blocks Phases 1–6", but Q11 shapes Phase 3~~ — fixed 2026-10-23 (Q11 answered) |
+| ~~`DIFFICULTY.md`~~ | ~~published-puzzle verification required, not done~~ — fixed 2026-10-22 (Stage 3) |
 | `ARCHITECTURE.md` | draws modules by domain (auth, users, puzzles, games); the code is organised by layer (`api/`, `services/`, `database/`) |
 
 ## Not verifiable from here
 
 - 42's OAuth guide (`api.intra.42.fr/apidoc/guides/web_application_flow`)
-  redirects to the intra login. Whether 42 checks PKCE is unconfirmed.
+  redirects to the intra login.
 - Confirmed by the developer's first real sign-in (2026-10-21): 42 accepts the
   form-encoded code exchange (RFC 6749 §4.1.3), and `/v2/me` carries the
   fields the code reads (`campus_users[].is_primary`, `campus[]`).
-- D18's wrong-verifier test needs the registered application: developer only.
+- Confirmed by the developer on 2026-11-02: 42 accepts a wrong PKCE verifier,
+  so it does not enforce PKCE (D18).
 
 ---
 
@@ -115,8 +123,9 @@ skip count read (0 once Stage 3 lands).
 
 ### Stage 1 — Finish the 42 sign-in 🔑🔐 · `feature/oauth-completion`
 
-**Code done 2026-10-21 (1a–1f).** Left for the developer: register the
-app, a real sign-in, the wrong-verifier check. Two changes to the plan on
+**Code done 2026-10-21 (1a–1f).** Registering the app and a real sign-in
+were done by the developer (first sign-in 2026-10-21); the wrong-verifier check
+(D18) on 2026-11-02: 42 accepted it, so it does not enforce PKCE. Two changes to the plan on
 the way: 1d asks 42 for a stale holder's current login instead of keeping
 the stored one (D21); the fake provider redirects to the callback by path
 rather than a URL taken from the settings.
@@ -127,12 +136,12 @@ rather than a URL taken from the settings.
 | 1b | `state` cookie at `/login` (`Path=/api/auth/callback`, 10 min, HttpOnly, Lax), compared with `secrets.compare_digest`; `state` deletion committed before calling 42 | missing or different cookie rejected; replay after a failed callback rejected |
 | 1c | Every failure → `302` to `FRONTEND_ORIGIN/?login_error=<code>`; `error=access_denied` handled; user and token in one commit | one test per error code; no detail leaks |
 | 1d | Upsert refreshes a returning user; a login 42 reassigned goes to its new holder, the stale holder renamed from `GET /v2/users/:id` or to `former-<intra_id>` (D21) | returning user with a new login or campus; takeover by a newcomer and by a returning user; every fallback; no extra call to 42 without a collision |
-| 1e | Rate limit on `/login` | `429` on the real route |
+| 1e | Rate limit on `/login` | `429` on the real route (since D23, a redirect to `?login_error=too_many_requests`) |
 | 1f | P4: `APP_ENV` required, with no default in `Settings` or compose, so a deployment that forgets it does not start; fake provider honours `?as=<login>` (validated format, fake users kept apart from real `intra_id`s), ignored outside fake mode | missing `APP_ENV` refuses to start; fake refused in production; `?as=` gives two distinct users; `?as=` ignored by the real provider |
 
 Done: login → callback → `/api/users/me` through the fake provider in one
-test; every case in `API.md` tested. Then, by the developer: register the app
-(Q3), a real sign-in, D18's wrong-verifier check.
+test; every case in `API.md` tested. Then, by the developer, all done: the app
+registered (Q3), a real sign-in, D18's wrong-verifier check (2026-11-02).
 
 ### Stage 2 — Test and tooling floor · `chore/test-hardening`
 
@@ -217,20 +226,73 @@ carries the solution. Done: the whole loop works through the API alone.
   refresh and the input queue; alternative is Node's test runner with
   experimental TypeScript stripping, more fragile; maintained by the Vite team,
   never shipped to production.
-- 6b Home page, five slots, two inactive (Q7).
+  **Done 2026-10-25**, in two commits: the client, with the shared refresh
+  (also across tabs, D15) and vitest (D24); then the session in the
+  interface — signed in, signed out, server unreachable, and one message per
+  `login_error`. Routing moved to 6b: with one page there was nothing to route.
+- 6b Home page, five slots, two inactive (Q7); routing between it and the
+  game, without a dependency. **Done 2026-10-26**: starting asks first (D25);
+  the game page loads the board from the API, read-only once completed; inputs
+  stay in memory until 6c.
 - 6c Game page wired: ordered `PUT` queue honouring `Retry-After`, 60 s
   heartbeat, decorative timer, completed and closed states; delete
-  `demoPuzzle.ts`.
-- 6d Check at 375 px.
+  `demoPuzzle.ts` (done in 6b). In two commits. First, **done 2026-10-26**:
+  inputs saved one at a time and in order, a cell rewritten before its turn
+  sent once, `429` waited out, a lost connection retried with backoff, the
+  queue outliving the page; the heartbeat, from a minute after opening; a
+  warning before closing the tab with inputs unsaved. Then, **done
+  2026-10-26**: the decorative clock (this device's, never sent); "Check the
+  grid" once all 81 cells are filled, which first waits for every input to be
+  saved, since the server checks its own grid; a wrong answer says only that,
+  with the count; solved shows both times; closed is read-only.
+- 6e (asked for while testing, 2026-10-27) "Clear the grid" (D27): one
+  request that empties every filled cell, through the input queue; not a
+  restart, so the clock and the submissions are untouched. **Done
+  2026-10-28** (`DELETE /api/games/{id}/cells`, rules in `GAME_RULES.md`).
+- 6d Check at 375 px. **Done 2026-10-26**, in the browser at 375×812 with a
+  throwaway dev user (deleted afterwards): sign-in page, home, start with its
+  confirmation and cancel, an input surviving a reload, a wrong check, a right
+  one, the home page showing it solved, back and forward, an unknown path,
+  sign-out. No horizontal scroll anywhere; nothing needed changing.
+
+After 6e, still within the stage:
+
+- Clue ranges (2026-10-27 to 2026-10-31), from playing the first puzzles:
+  minimal puzzles were too sparse. Easy 32 to 42 givens (D26, generator
+  version `"2"`), Medium 32 to 36 (D28, `"3"`), Hard 30 to 38 (D29, `"4"`).
+  Measured on version `"4"`: Easy 1.01 attempts and about 7 ms, Medium 6.1
+  attempts and 0.38 s, Hard 238 attempts on average, 862 at most, about 14 s
+  (`DIFFICULTY.md`). The development database's puzzles from 2026-10-29 on were
+  regenerated by hand.
+- Review findings (the `reviewer` agent), fixed on 2026-11-02: the access log
+  no longer writes the query of any URL, so the authorization code and `state`
+  stay out of it, and database errors no longer quote bound parameters such as
+  `state` and the PKCE verifier (`SECURITY.md`); board rows keep their height
+  when empty; a refused clear shows the server's grid again. An earlier review
+  was addressed on 2026-10-27.
+
+**Done 2026-11-02.** Exit condition met by hand with a real 42 account on the
+development setup: Easy and Medium games played to completion with their times
+persisted, and a game left (signing out) and reopened with its digits intact.
+No Hard game has been finished yet; it uses the same code path. 6d (375 px)
+was checked on 2026-10-26 with the fake provider. Not done: the push and the
+pull request of `feature/frontend-mvp`.
 
 Done: `ROADMAP.md` Phase 6 exit, by hand with the fake provider and with 42.
 
 ### Stage 7 — Phase 7: LAN deployment 🔐 · `deploy/lan`
 
 Deployment compose: uvicorn without `--reload`, migrations on start, built
-front end served per P3, `FORWARDED_ALLOW_IPS`, HTTPS or `COOKIE_SECURE` per
+front end served per P3 — answering every client path (`/games/…`) with
+`index.html`, as Vite's dev server does, or a reload of a game is a `404` — `FORWARDED_ALLOW_IPS`, HTTPS or `COOKIE_SECURE` per
 P2, stricter fake-provider guard per P4, purge of expired `refresh_tokens` and
 `oauth_states` in the scheduled job.
+
+Two logging points. A proxy in front of the API must not log query strings:
+the sign-in callback carries the authorization code and `state` there
+(`SECURITY.md`). And the Vite proxy in `frontend/vite.config.ts`, which logs
+whole URLs when the API is down, is development only; it goes away with the
+deployment, because Vite is not there.
 
 Review D5's login limit there: it is per IP, and a whole 42 campus usually
 reaches the internet through one public address — five sign-ins a minute
@@ -252,15 +314,15 @@ New, numbered `P` so they cannot collide with `DECISIONS.md`:
 | # | Question | Needed by | Proposal |
 |---|---|---|---|
 | ~~P1~~ | ~~How the generation job runs~~ | Stage 4 | **Answered 2026-10-23: its own compose service** (Q11) |
-| P2 | Cookies on the LAN: HTTPS through a proxy (Caddy, mkcert), or a `COOKIE_SECURE` setting independent of `APP_ENV` | Stage 7 | — |
+| P2 | Cookies on the LAN: HTTPS through a proxy (Caddy, mkcert), or a `COOKIE_SECURE` setting independent of `APP_ENV` | Stage 7 | HTTPS: plain HTTP also loses the cross-tab refresh lock, which only exists in a secure context (D15) |
 | P3 | Serving the built front end: FastAPI `StaticFiles` (one origin, nothing new) or an nginx/Caddy container | Stage 7 | FastAPI |
 | ~~P4~~ | ~~Fake provider: deployments must declare their environment; fake accepts `?as=<login>` to test with several users~~ | Stage 1 | **Answered 2026-10-20: yes to both** — D19 (Stage 1f) |
 | ~~P5~~ | ~~Database tests without `sudoku_test`: always fail, or fail unless an opt-out variable is set~~ | Stage 2 | **Answered 2026-10-20: always fail (A)** — D20 |
 | ~~P6~~ | ~~Makefile default goal: `all` instead of the destructive `re`~~ | Stage 2 | **Answered 2026-10-21: `all`** |
-| P7 | Front-end tests with vitest, or none | Stage 6 | vitest |
+| ~~P7~~ | ~~Front-end tests with vitest, or none~~ | Stage 6 | **Answered 2026-10-25: vitest** — D24 |
 | ~~P8~~ | ~~Source for published puzzles~~ | Stage 3 | **Answered 2026-10-22: SudokuWiki's solver** (`DIFFICULTY.md`, verification) |
 | P9 | Delete merged branches | any time | developer's call |
-| P10 | `/login` over its limit answers a JSON `429`, which a browser shows raw; or redirect to `/?login_error=too_many_requests` like the callback | Stage 6 | redirect |
+| ~~P10~~ | ~~`/login` over its limit answers a JSON `429`, which a browser shows raw; or redirect to `/?login_error=too_many_requests` like the callback~~ | Stage 6 | **Answered 2026-10-25: redirect** — D23 |
 
 ## Inputs wanted from the developer
 

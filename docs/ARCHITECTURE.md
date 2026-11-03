@@ -12,7 +12,8 @@ uvicorn. It is a runtime dependency, not only a test one, because the 42 login
 uses it in production. The standard library's `urllib` could make those two
 calls, but would not remove httpx, which the tests still need.
 
-**Frontend:** React + TypeScript + Vite. Confirmed (`DECISIONS.md` Q4).
+**Frontend:** React + TypeScript + Vite. Confirmed (`DECISIONS.md` Q4). Tests:
+vitest, dev only (`DECISIONS.md` D24).
 Chosen without a long evaluation: a 9×9 grid does not discriminate between
 frameworks, and the decision is not worth the time it costs to debate.
 
@@ -44,8 +45,8 @@ responsibility, one database.
 Two processes run this code, as two compose services built from one image:
 `api` serves HTTP; `puzzles` runs `python -m app.jobs.generate_puzzles --every
 3600`, which keeps today and the next days stocked with puzzles
-(`DECISIONS.md` Q11). Generating a Hard takes about 16 seconds of CPU, so it
-never happens inside a request.
+(`DECISIONS.md` Q11). Generating a Hard takes about 14 seconds of CPU on average
+(`DIFFICULTY.md`), so it never happens inside a request.
 
 What that package must do is specified in `DIFFICULTY.md`.
 

@@ -20,8 +20,11 @@ def make_engine(url: str, **kwargs: Any) -> Engine:
     switch the zone without anyone noticing. A startup option is not enough:
     ``PGTZ`` overrides ``options=-c timezone=UTC``. So every new connection
     sets the zone itself, once it is open, where nothing outside can undo it.
+
+    The bound parameters stay out of its error messages, which reach the logs:
+    among them are a sign-in's ``state`` and PKCE verifier (``SECURITY.md``).
     """
-    engine = create_engine(url, pool_pre_ping=True, **kwargs)
+    engine = create_engine(url, pool_pre_ping=True, hide_parameters=True, **kwargs)
     event.listen(engine, "connect", _use_utc)
     return engine
 

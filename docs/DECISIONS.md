@@ -153,11 +153,34 @@ the user is signed out. Two refreshes must never run at the same time: both
 would present the same token, and the second looks exactly like theft. One
 shared in-flight request, awaited by every caller.
 
+The same holds across tabs (added 2026-10-25, Stage 6): tabs share the
+cookies, so two tabs refreshing at once — a laptop waking with the game open
+twice — would sign the user out. The refresh runs under a Web Locks lock
+(`navigator.locks`) named for the site. Serialised, the second tab's refresh
+sends the cookie the first one just received: an ordinary rotation.
+
+Web Locks exist only in a secure context: HTTPS, or `localhost`. Served over
+plain HTTP — a LAN address without a certificate — the lock is missing,
+refreshes are serialised within each tab only, and two tabs refreshing at the
+same instant can still sign the user out. One more reason for HTTPS at
+Stage 7 (`PLAN.md` P2).
+
+Only a `401` from the refresh means the session is over. Any other failure —
+a `502` while the API restarts — is reported as that failure and retried by
+whoever asked: a valid session is never thrown away, nor the inputs waiting
+on it, because the server stumbled.
+
 What this gives up, stated so nobody rediscovers it: after a logout, or after
 a stolen refresh token is detected, the access token already issued stays
 valid until it expires — up to 15 minutes. Closing that gap means a database
 check on every request (a `sid` claim matched against `refresh_tokens`);
 considered and parked on 2026-10-01.
+
+And a refresh whose answer never arrives — the tab reloaded or closed while
+it was in flight, after the server had committed the rotation — leaves the
+browser holding a token already used. The next refresh presents it, looks
+like theft, and that device is signed out. Rare, and the cost of rotation
+without a grace window; accepted.
 
 ### D16 — Only 42 accounts; no local accounts
 Decided 2026-10-06.
@@ -211,6 +234,13 @@ project.
 To be checked with the real application in Phase 4: exchange a code with a
 **wrong** verifier. If 42 accepts it, PKCE protects nothing against 42, and
 `SECURITY.md` must say so.
+
+Checked 2026-11-02, by the developer, with a real sign-in: the challenge was
+sent as usual and the exchange carried a well-formed verifier that did not
+match it. 42 answered `200` and issued a token, so **42 does not enforce
+PKCE**. It stays in the code: it costs nothing, it was part of the point, and
+it starts protecting if 42 ever enforces it. What protects the exchange today
+is the client secret.
 
 ### D19 — The environment is always declared; the fake provider can play anyone
 Decided 2026-10-20 (`PLAN.md` P4).
@@ -283,6 +313,118 @@ Decided 2026-10-24, before Phase 5.
 - **Active time never exceeds official time.** Each gap is rounded to whole
   seconds on its own, so inputs 0.6 s apart could add up past the wall clock;
   on completion `active_seconds` is capped at `official_seconds`.
+
+### D23 — `/login` over its limit redirects, never answers `429`
+Decided 2026-10-25, at the start of Stage 6 (was `PLAN.md` P10).
+
+A browser reaches `GET /api/auth/login` by navigation, not `fetch`, so a JSON
+`429` would be shown to the user as raw text. Over the limit, `/login` answers
+`302` to `FRONTEND_ORIGIN/?login_error=too_many_requests`, the way the callback
+reports its failures, and the front end shows the message. The limit itself
+(D5) is unchanged, and the check comes before any work: a refused attempt
+stores no `state` and sets no cookie. No `Retry-After`: after a redirect there
+is nobody to read it, and the message says to wait a minute.
+
+### D24 — Front-end tests with vitest
+Decided 2026-10-25, at the start of Stage 6 (was `PLAN.md` P7).
+
+The front end has logic whose failure is silent and costly: the shared refresh
+(D15; two refreshes at once sign the user out) and, in 6c, the ordered input
+queue. Those get unit tests, with **vitest**, as a dev dependency only.
+
+- **Problem it solves:** running TypeScript tests with the same transform as
+  the app (it reuses the project's Vite config), with nothing else to set up.
+- **The alternative without it:** Node's own test runner, with its type
+  stripping — experimental on Node 22, unable to run anything Vite
+  transforms, and assertions and fakes written by hand.
+- **Profile:** maintained by the Vite team; never shipped to the browser.
+  Version **4.1.12**, pinned exactly: the 4 line accepts the project's Vite 6,
+  and a later 4.x is taken only on purpose. The
+  3.2 line was rejected — `npm audit` reports critical advisories in it
+  (`tinypool`, `@vitest/mocker`) that 4.1.12 fixes.
+- No DOM environment (jsdom, happy-dom): the tests are of plain modules, so the
+  `node` environment is enough. Revisit if components ever need tests.
+
+### D25 — Starting a puzzle takes a second tap
+Decided 2026-10-26, Stage 6.
+
+Starting a game shows its grid and starts its official clock, and neither can
+be undone (D3, Q13). On the home page, "Play" on a puzzle not yet started does
+not start it: it turns the same card into "The clock starts when the grid
+appears. There is no restart." with **Start the clock** and **Cancel**. One tap
+more, in exchange for never a clock started by a stray touch. A game already
+started — in another tab, say — is resumed, not refused: the `409` names it.
+
+### D26 — Easy puzzles start with 32 to 42 clues
+Decided 2026-10-27, from playing the first Easy puzzles.
+
+Every puzzle was dug to minimal, so an Easy started with 23 to 26 givens: each
+step a single, but a long, sparse grid that felt hard. Easy now stops digging
+at a target drawn per puzzle from 32 to 42, inclusive, and is discarded if it
+ends outside that range (`DIFFICULTY.md`, "Clue ranges").
+The grade is unchanged — still the hardest technique required, and an Easy
+still needs nothing beyond tier 1. Medium and Hard stay minimal.
+
+Measured before choosing it: dug to 32 givens, 134 of 150 random grids grade
+Easy; from 38 on, all of them; about 10 ms each. The generator version is now
+`"2"`, since a seed no longer reproduces a version-1 puzzle. The development
+database's Easy puzzles from 2026-10-27 on were regenerated.
+
+### D27 — The player can clear the grid
+Decided 2026-10-27, Stage 6.
+
+A player who has gone wrong may want to start the grid over without
+retyping 50 erasures. `DELETE /api/games/{id}/cells` puts the grid back to its
+givens in one request; the game page offers "Clear the grid", which asks
+first, as starting does (D25), because it cannot be undone.
+
+It is not a restart, and so it is compatible with D3: the session stays the
+same session — `started_at`, the official clock, `submission_count` and the
+active time already earned are left exactly as they were. Nothing about the
+game's history can be wiped, only the cells.
+
+- **One request, not one per cell:** at one input a second (D22), clearing 50
+  cells one by one would take most of a minute.
+- **An input in every other respect:** the same legality, one token from the
+  same rate-limit bucket, and activity — it keeps a past-day game alive like
+  any input. It never reads the solution.
+- **Ordered with the inputs:** in the client it goes through the same queue.
+  Inputs still waiting are dropped, since the grid is about to be emptied;
+  inputs typed afterwards are sent after it; an input already sent before the
+  clear is never retried after it, or it would undo the clear.
+
+### D28 — Medium puzzles start with 32 to 36 clues
+Decided 2026-10-28, from playing the first Medium puzzles.
+
+The same complaint as D26, one tier up: a minimal Medium, 23 to 26 givens,
+felt out of reach. A Medium now starts with 32 to 36 givens, drawn per puzzle,
+and still needs a tier-2 technique — a pair, a pointing pair or a box-line
+reduction (`DIFFICULTY.md`, "Clue ranges"). Hard stayed minimal until D29.
+
+Stopping the dig early, as Easy does, does not work here: dug to 32 givens,
+2 of 150 random grids graded Medium; from 34 on, none — that many givens
+almost always leave singles enough. So a minimal Medium is found first, then
+given cells of its solution back one at a time, each kept only if the puzzle
+still grades Medium. Measured: 15 of 15 found at every target from 30 to 38,
+about half a second each. A given taken from the solution cannot cost
+uniqueness, only difficulty, and the grade checks that.
+
+The ranges overlap: a day's Medium may start with more givens than its Easy.
+The tier is the technique, not the count. Generator version `"3"`.
+
+### D29 — Hard puzzles start with 30 to 38 clues
+Decided 2026-10-31, at the developer's request.
+
+D28 again, one tier up: a minimal Hard, 23 or so givens, was too sparse to
+get into. A Hard now starts with 30 to 38 givens, drawn per puzzle, and still
+needs a tier-3 technique — a triple or an X-Wing (`DIFFICULTY.md`, "Clue
+ranges"). Every tier now has a range; none is minimal.
+
+The same refill as D28: a minimal Hard is found first, then given cells of its
+solution back, each kept only if the puzzle still grades Hard. Measured on 20
+minimal Hards: 20 reach 30 givens, 19 reach 38, each in under a tenth of a
+second; the one that falls short is discarded and the search goes on. The
+hardest technique is unchanged by the refill. Generator version `"4"`.
 
 ### Q1 — The activity rule behind D6 (answered)
 

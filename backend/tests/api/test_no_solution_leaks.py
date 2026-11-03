@@ -83,6 +83,8 @@ def test_no_answer_before_the_solve_leaks_anything(
     call("today, nothing started", db_client.get(TODAY), 200)
     game_id = call("start", start(db_client, "hard"), 201).json()["game_id"]
     left_overnight = call("start another", start(db_client, "easy"), 201).json()["game_id"]
+    # Its own input budget: the hard game's is spent below.
+    call("clear", db_client.delete(f"{GAMES}/{left_overnight}/cells"), 204)
     game = f"{GAMES}/{game_id}"
     call("start again", start(db_client, "hard"), 409)
     call("start, unknown difficulty", db_client.post(GAMES, json={"difficulty": "x"}), 422)
@@ -119,6 +121,7 @@ def test_no_answer_before_the_solve_leaks_anything(
     call("someone else: resume", db_client.get(game), 404)
     call("someone else: input", db_client.put(f"{game}/cells/{EMPTY}", json={"value": 1}), 404)
     call("someone else: heartbeat", db_client.post(f"{game}/heartbeat"), 404)
+    call("someone else: clear", db_client.delete(f"{game}/cells"), 404)
     call("someone else: complete", db_client.post(f"{game}/complete"), 404)
     call("someone else: today", db_client.get(TODAY), 200)
 
@@ -128,6 +131,7 @@ def test_no_answer_before_the_solve_leaks_anything(
     call("closed: resume", db_client.get(closed), 410)
     call("closed: input", db_client.put(f"{closed}/cells/{EMPTY}", json={"value": 1}), 410)
     call("closed: heartbeat", db_client.post(f"{closed}/heartbeat"), 410)
+    call("closed: clear", db_client.delete(f"{closed}/cells"), 410)
     call("closed: complete", db_client.post(f"{closed}/complete"), 410)
     call("today, the next day", db_client.get(TODAY), 200)
 

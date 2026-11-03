@@ -56,8 +56,9 @@ there is no way to look without committing.
 - 42 OAuth2, authorization code flow, with `state` and PKCE. `state` is
   single-use and verified, and bound by a short-lived cookie to the browser
   that started the login (no login CSRF with an attacker's own valid `state`).
-  Whether 42 enforces PKCE is not documented; it is to be checked against the
-  real application (`DECISIONS.md` D18).
+  42 does not enforce PKCE: checked on 2026-11-02, it accepted a wrong verifier
+  (`DECISIONS.md` D18). So a leaked authorization code is guarded by the client
+  secret alone, not by the verifier.
 - The user's 42 password is never seen, requested or stored.
 - Client ID, client secret and the JWT signing key (`SECRET_KEY`) come from the
   environment. Never from source, never from a committed file.
@@ -129,7 +130,11 @@ Notes beyond the numbers:
   no MVP benefit.
 - The application token used to resolve a login collision (`DECISIONS.md` D21)
   is fetched for that one call and never stored either.
-- Never log tokens, secrets, cookies, or authorization codes.
+- Never log tokens, secrets, cookies, or authorization codes. That covers the
+  access log, which writes whole URLs: every URL is logged without its query
+  (`app/access_log.py`). A proxy put in front of the API must do the same. It
+  also covers database errors, whose text would quote the bound parameters
+  (`state`, the PKCE verifier): the engine hides them (`hide_parameters`).
 - GDPR applies — real people's identities, in the EU. A privacy note and a
   deletion path are needed before Stage 3 (`DECISIONS.md` Q8).
 

@@ -43,7 +43,7 @@ class Maker:
         self.failures: dict[Tier, int] = {}
         """How many more calls for that tier raise GenerationError."""
         self.broken: dict[Tier, int] = {}
-        """How many more calls for that tier return a puzzle with two solutions."""
+        """How many more calls for that tier return a puzzle with many solutions."""
 
     def __call__(self, tier: Tier, seed: int) -> GeneratedPuzzle:
         self.calls.append((tier, seed))
@@ -53,10 +53,8 @@ class Maker:
         puzzle = dataclasses.replace(_real(tier), seed=seed)
         if self.broken.get(tier, 0):
             self.broken[tier] -= 1
-            first_given = next(i for i, ch in enumerate(puzzle.givens) if ch != "0")
-            # Minimal puzzles lose uniqueness with any given removed.
-            givens = puzzle.givens[:first_given] + "0" + puzzle.givens[first_given + 1 :]
-            puzzle = dataclasses.replace(puzzle, givens=givens)
+            # An empty grid: no puzzle is minimal enough to count on removing one given.
+            puzzle = dataclasses.replace(puzzle, givens="0" * 81)
         return puzzle
 
 

@@ -6,7 +6,8 @@
 #   make puzzles   one round of puzzle generation by hand (the puzzles service
 #                  does it every hour)
 #   make test      the backend tests, against the sudoku_test database
-#   make check     what CI checks: lint, format, types, tests, front-end build
+#   make check     what CI checks: lint, format, types, tests, front-end tests
+#                  and build
 #   make down      stop the containers, keeping the data
 #   make re        from zero: deletes the database, rebuilds, starts, migrates
 #   make fclean    stop and delete containers AND the database volume
@@ -46,6 +47,7 @@ check:
 	$(COMPOSE) exec -T api ruff format --check .
 	$(COMPOSE) exec -T api mypy src
 	$(MAKE) test
+	$(COMPOSE) run --rm --no-deps web npm test
 	$(COMPOSE) run --rm --no-deps web npm run build
 
 down:

@@ -3,7 +3,7 @@ import secrets
 from typing import Annotated
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Cookie, Depends, Response, status
+from fastapi import APIRouter, Cookie, Depends, Request, Response, status
 from sqlalchemy.orm import Session
 from starlette.responses import RedirectResponse
 
@@ -16,7 +16,7 @@ from app.api.cookies import (
     set_oauth_state_cookie,
 )
 from app.api.dependencies import ProviderDep
-from app.api.rate_limits import limit_login_attempts
+from app.api.rate_limits import take_login_attempt
 from app.config import get_settings
 from app.database.conf.dependencies import get_db
 from app.database.models.users import User
@@ -97,8 +97,15 @@ def callback(
     return redirect
 
 
-@router.get("/login", dependencies=[Depends(limit_login_attempts)])
-def login(db: Annotated[Session, Depends(get_db)], provider: ProviderDep) -> RedirectResponse:
+@router.get("/login")
+def login(
+    request: Request, db: Annotated[Session, Depends(get_db)], provider: ProviderDep
+) -> RedirectResponse:
+    """To 42, with a fresh ``state``. Over the login limit, back to the front end
+    with ``?login_error=too_many_requests`` instead: the browser arrives by
+    navigation, and a JSON ``429`` would be shown to the user raw (D23)."""
+    if not take_login_attempt(request):  # before any work: no state for a refusal
+        return _to_front_end(login_error=TOO_MANY_REQUESTS)
     state, code_challenge = start_login(db)
     db.commit()
     url = provider.authorize_url(state, code_challenge)
@@ -115,6 +122,7 @@ INVALID_STATE = "invalid_state"
 ACCESS_DENIED = "access_denied"
 PROVIDER_ERROR = "provider_error"
 NO_PRIMARY_CAMPUS = "no_primary_campus"
+TOO_MANY_REQUESTS = "too_many_requests"  # from /login itself, never the callback
 
 
 class _LoginFailed(Exception):

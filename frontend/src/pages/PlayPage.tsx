@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import { Board } from "../components/Board";
 import { NumberPad } from "../components/NumberPad";
-import { DEMO_GIVENS } from "../game/demoPuzzle";
-import { type Grid, moveFrom, parseGrid, setCell } from "../game/grid";
+import { type Grid, moveFrom } from "../game/grid";
 
 const ARROWS: Record<string, [number, number]> = {
   ArrowUp: [-1, 0],
@@ -12,23 +11,43 @@ const ARROWS: Record<string, [number, number]> = {
   ArrowRight: [0, 1],
 };
 
-/**
- * One puzzle you can fill in, and nothing else yet: no timer, no checking, no
- * saving. The grid lives in memory only, so a reload starts it over.
- */
-export function PlayPage() {
-  const givens = useMemo(() => parseGrid(DEMO_GIVENS), []);
-  const [values, setValues] = useState<Grid>(givens);
+interface PlayPageProps {
+  title: string;
+  givens: Grid;
+  values: Grid;
+  /** A finished or closed game: the grid is shown, nothing can be written. */
+  readOnly: boolean;
+  /** The decorative clock, if it runs. */
+  clock: string | null;
+  /** A line under the title: the result, or whether inputs are saved. */
+  note: string | null;
+  /** Under the pad: the check, and what it answered. */
+  children?: ReactNode;
+  /** `value` 0 clears the cell. Never called on a given or when read-only. */
+  onWrite: (cell: number, value: number) => void;
+}
+
+/** The board and the number pad. What a write does is the caller's business. */
+export function PlayPage({
+  title,
+  givens,
+  values,
+  readOnly,
+  clock,
+  note,
+  onWrite,
+  children,
+}: PlayPageProps) {
   const [selected, setSelected] = useState<number | null>(null);
 
-  const selectedIsEditable = selected !== null && givens[selected] === 0;
+  const selectedIsEditable = !readOnly && selected !== null && givens[selected] === 0;
 
   const write = useCallback(
     (value: number) => {
-      if (selected === null) return;
-      setValues((current) => setCell(current, givens, selected, value));
+      if (!selectedIsEditable || values[selected] === value) return;
+      onWrite(selected, value);
     },
-    [givens, selected],
+    [onWrite, selected, selectedIsEditable, values],
   );
 
   // Hardware keyboard: digits write, Backspace/Delete/0 clear, arrows move.
@@ -51,9 +70,22 @@ export function PlayPage() {
 
   return (
     <main className="play">
-      <h1 className="play__title">Sudoku 42</h1>
+      <h1 className="play__title">{title}</h1>
+      {clock !== null && (
+        <p className="play__clock" aria-label="Time since you started">
+          {clock}
+        </p>
+      )}
+      {note !== null && (
+        <p className="play__note" aria-live="polite">
+          {note}
+        </p>
+      )}
       <Board givens={givens} values={values} selected={selected} onSelect={setSelected} />
-      <NumberPad onDigit={write} onErase={() => write(0)} disabled={!selectedIsEditable} />
+      {!readOnly && (
+        <NumberPad onDigit={write} onErase={() => write(0)} disabled={!selectedIsEditable} />
+      )}
+      {children}
     </main>
   );
 }

@@ -103,6 +103,23 @@ jobs; do not merge them.
 A puzzle solvable by naked singles alone is still Easy; there is no fourth tier
 below Easy.
 
+### Clue ranges
+
+The grade is still the technique, never the count. But a *minimal* puzzle —
+23 or so clues, every one needed — is a long, sparse grid that feels hard
+however simple each step is. So every tier also has a range of givens to start
+with, inclusive:
+
+| Tier | Givens |
+|---|---|
+| **Easy** | 32 to 42 |
+| **Medium** | 32 to 36 |
+| **Hard** | 30 to 38 |
+
+A Medium with 32 to 36 givens still needs a tier-2 technique, and a Hard with
+30 to 38 a tier-3 one: the extra givens are chosen so that they do
+(generation, step 5).
+
 ### The discard rule
 
 **A puzzle the ladder cannot finish is discarded, not shipped as Hard.**
@@ -117,13 +134,26 @@ table gains a row — the design already accommodates that.
 1. Build a random complete valid grid (randomised backtracking).
 2. Walk the cells in random order. Remove one, then run the uniqueness solver.
    If exactly one solution remains, leave the cell removed; otherwise restore it.
-3. When no further cell can be removed, run the grader.
+   For Easy, first draw a target uniformly from 32 to 42, and stop digging as
+   soon as that many givens are left.
+3. When no further cell can be removed (or, for Easy, the target is reached),
+   run the grader. An Easy candidate outside 32 to 42 givens is discarded.
 4. If the grade matches the requested tier, accept. Otherwise discard the whole
    candidate and start again from step 1.
+5. For Medium and Hard, draw a target uniformly from the tier's range (32 to
+   36, 30 to 38), then give givens back: cells of the solution, in random
+   order, each kept only if the puzzle still grades the same tier, until the
+   target is reached. A candidate that ends outside the range is discarded.
+   Random digging almost never stops on a Medium that rich by itself
+   (measured: 2 in 150 grids at 32 givens, none from 34 on); giving givens
+   back finds one every time, in about half a second. A Hard reaches 38
+   givens 19 times in 20, in under a tenth of a second; finding the minimal
+   Hard to start from still takes most of the time.
 
 Step 4 is a retry loop and that is acceptable: generation runs offline, days
-ahead of play (`DECISIONS.md` A1), so no user ever waits on it. Easy is expected
-to land on most attempts and Hard to take several. If Hard generation proves too
+ahead of play (`DECISIONS.md` A1), so no user ever waits on it. Easy lands on
+almost every attempt; Hard takes a couple of hundred (measured over 12 seeds: 238
+on average, 862 at most, about 14 seconds each). If Hard generation proves too
 slow, bias the digging order or the starting grid — **do not weaken the grader
 to make puzzles easier to find.**
 

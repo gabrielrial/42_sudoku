@@ -56,7 +56,7 @@ Each game endpoint below lists its own codes.
 **Rate limits** are per D5: game input 1/second per session with burst,
 completion 5/minute per session, login 5/minute per IP, heartbeat 2/minute per
 session. Exceeding one gives `429 too_many_requests` with `Retry-After`, in
-whole seconds rounded up.
+whole seconds rounded up — except at `/login`, which redirects instead (D23).
 
 ---
 
@@ -71,7 +71,11 @@ endpoint with the `state` and the verifier's S256 `code_challenge`. Takes no
 parameters: after signing in, the user always lands on the front end's home
 page (a `?next=` is postponed; see `DATA_MODEL.md`, `oauth_states`).
 
-PKCE is `DECISIONS.md` D18. Limited to 5 requests/minute per IP (D5).
+PKCE is `DECISIONS.md` D18. Limited to 5 requests/minute per IP (D5). Over the
+limit it answers `302` to `FRONTEND_ORIGIN/?login_error=too_many_requests`,
+never a JSON `429`: the browser arrives here by navigation, like the callback,
+and would show the user the raw body (D23). A refused attempt does no work: no
+`state` is stored and no cookie set.
 
 Fake identity provider only (D19): `?as=<login>` signs in as that made-up
 user — 1 to 32 characters of `a-z`, `0-9` and `-`, otherwise
@@ -102,6 +106,7 @@ way the `state` cookie is cleared.
 | `access_denied` | 42 came back with `error=access_denied`: the user refused at 42 |
 | `provider_error` | 42 came back with any other `error`, or with neither `code` nor `error`; the code exchange or `/v2/me` failed, timed out or answered something unexpected |
 | `no_primary_campus` | the 42 account has no primary campus (`DATA_MODEL.md`, `users`) |
+| `too_many_requests` | from `/login` itself, before 42 is reached: this address is over the login limit |
 
 The checks run in that order. The `state` is spent as soon as it is accepted,
 before 42 is called, so a failed attempt cannot be replayed. Each failure is
@@ -260,6 +265,27 @@ else's game stop at `404` and cost its owner nothing.
 | Game already completed | `409 game_completed` |
 | Game closed by rollover | `410 game_closed` |
 | Bad index or value | `422` |
+| Over the rate limit | `429` |
+
+### `DELETE /api/games/{id}/cells`
+
+Clears the grid: every cell the player filled is emptied, and `state` is the
+givens again (D27). No body.
+
+    ← 204
+
+Not a restart (D3): `started_at`, `submission_count`, `active_seconds` and the
+official clock are untouched. Like an input, it is activity — it moves
+`last_activity_at` and adds active time by the same rule — and it never reads
+`puzzle_solutions`.
+
+Rate limit: one input from the game's bucket (D22), taken after ownership.
+
+| Condition | Response |
+|---|---|
+| Not the caller's game, or no such game | `404 game_not_found` |
+| Game already completed | `409 game_completed` |
+| Game closed by rollover | `410 game_closed` |
 | Over the rate limit | `429` |
 
 ### `POST /api/games/{id}/heartbeat`

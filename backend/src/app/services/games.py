@@ -288,6 +288,19 @@ def play_cell(db: Session, owned: OwnedGame, index: int, value: int | None, gap:
     db.commit()
 
 
+def clear_cells(db: Session, owned: OwnedGame, gap: timedelta) -> None:
+    """Empty every cell the player filled: the grid is the givens again (D27).
+
+    Not a restart (D3): ``started_at``, the submissions and the active time
+    stay as they are, and the official clock goes on. It is an input, so it
+    is activity like one.
+    """
+    game = _open(owned)
+    game.state = owned.puzzle.givens
+    _touch(owned, gap)
+    db.commit()
+
+
 def heartbeat(db: Session, owned: OwnedGame, gap: timedelta) -> None:
     """The player is here. Nothing else changes."""
     _open(owned)
