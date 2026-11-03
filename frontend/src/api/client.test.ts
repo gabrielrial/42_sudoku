@@ -170,6 +170,24 @@ describe("a request answered 401", () => {
   });
 });
 
+describe("deleting the account", () => {
+  it("is a DELETE of the signed-in user", async () => {
+    const server = fakeServer({ "/users/me": [204] });
+    const api = createClient({ fetch: server.fetch, base: "/api" });
+
+    await expect(api.deleteAccount()).resolves.toBeUndefined();
+
+    expect(server.calls.map((c) => `${c.method} ${c.path}`)).toEqual(["DELETE /users/me"]);
+  });
+
+  it("rejects when the server refuses, so the interface can say it did not happen", async () => {
+    const server = fakeServer({ "/users/me": [500] });
+    const api = createClient({ fetch: server.fetch, base: "/api" });
+
+    await expect(api.deleteAccount()).rejects.toMatchObject({ status: 500 });
+  });
+});
+
 describe("the browser's lock", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

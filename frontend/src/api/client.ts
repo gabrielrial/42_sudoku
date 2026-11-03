@@ -182,6 +182,8 @@ export function createClient({
     /** The signed-in user; `401 not_authenticated` when nobody is. */
     getMe: () => request<Me>("/users/me"),
     logout: () => request<void>("/auth/logout", { method: "POST" }),
+    /** The account and everything of theirs, for good (D30). */
+    deleteAccount: () => request<void>("/users/me", { method: "DELETE" }),
     getToday: () => request<Today>("/puzzles/today"),
     /** Shows the grid and starts its clock, for good (D2, D3, Q13). */
     startGame: (difficulty: Difficulty) =>

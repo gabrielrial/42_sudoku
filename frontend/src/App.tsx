@@ -45,6 +45,12 @@ export function App() {
     }
   }, []);
 
+  // A failure is the bar's to report: the account is still there.
+  const deleteAccount = useCallback(async () => {
+    await api.deleteAccount();
+    setSession({ kind: "signed_out" });
+  }, []);
+
   switch (session.kind) {
     case "loading":
       return <p className="status">Loading…</p>;
@@ -62,7 +68,7 @@ export function App() {
     case "signed_in":
       return (
         <>
-          <SessionBar me={session.me} onSignOut={signOut} />
+          <SessionBar me={session.me} onSignOut={signOut} onDeleteAccount={deleteAccount} />
           <Page route={route} />
         </>
       );

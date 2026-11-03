@@ -146,6 +146,31 @@ body {
   font-weight: 400;
 }
 
+.session-bar__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.account-delete {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 492px;
+  margin: 0 auto;
+  padding: 12px 16px 0;
+}
+
+.account-delete__text {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.account-delete__problem {
+  margin: 0;
+  color: var(--danger);
+}
+
 /* --- Home: today's puzzles, five slots (Q7) ------------------------------------ */
 
 .home {
