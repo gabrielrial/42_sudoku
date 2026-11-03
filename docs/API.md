@@ -107,6 +107,7 @@ way the `state` cookie is cleared.
 | `provider_error` | 42 came back with any other `error`, or with neither `code` nor `error`; the code exchange or `/v2/me` failed, timed out or answered something unexpected |
 | `no_primary_campus` | the 42 account has no primary campus (`DATA_MODEL.md`, `users`) |
 | `too_many_requests` | from `/login` itself, before 42 is reached: this address is over the login limit |
+| `sign_in_conflict` | the account changed in the database during the sign-in: deleted at that moment (D30), or the same person signing in twice at once |
 
 The checks run in that order. The `state` is spent as soon as it is accepted,
 before 42 is called, so a failed attempt cannot be replayed. Each failure is

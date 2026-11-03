@@ -4,7 +4,9 @@ from typing import Annotated
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Cookie, Depends, Request, Response, status
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import StaleDataError
 from starlette.responses import RedirectResponse
 
 from app.api.cookies import (
@@ -123,6 +125,7 @@ ACCESS_DENIED = "access_denied"
 PROVIDER_ERROR = "provider_error"
 NO_PRIMARY_CAMPUS = "no_primary_campus"
 TOO_MANY_REQUESTS = "too_many_requests"  # from /login itself, never the callback
+SIGN_IN_CONFLICT = "sign_in_conflict"
 
 
 class _LoginFailed(Exception):
@@ -172,9 +175,15 @@ def _sign_in(
     except IdentityProviderError as exc:
         raise _LoginFailed(PROVIDER_ERROR, str(exc)) from None
 
-    user = upsert_user(db, identity, provider)
-    refresh_token = issue_refresh_token(db, user.id)
-    db.commit()  # the user and their session together, or neither
+    try:
+        user = upsert_user(db, identity, provider)
+        refresh_token = issue_refresh_token(db, user.id)
+        db.commit()  # the user and their session together, or neither
+    except (IntegrityError, StaleDataError) as exc:
+        # The row changed underneath: the account deleted at this very moment
+        # (D30), or the same person signing in twice at once.
+        db.rollback()
+        raise _LoginFailed(SIGN_IN_CONFLICT, type(exc).__name__) from None
     return create_access_token(user), refresh_token
 
 

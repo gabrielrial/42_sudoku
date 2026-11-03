@@ -158,11 +158,14 @@ def test_the_old_holder_puts_things_right_at_their_own_next_sign_in(db: Session)
     assert _login_of(db, 111) == "ana-m"
 
 
-def test_a_takeover_is_logged_by_id(db: Session, caplog: pytest.LogCaptureFixture) -> None:
-    _save(db, 111, "ana")
+def test_a_takeover_is_logged_by_an_id_that_dies_with_the_account(
+    db: Session, caplog: pytest.LogCaptureFixture
+) -> None:
+    holder = _save(db, 111, "ana")
 
     with caplog.at_level(logging.WARNING, logger="app.services.users"):
         _upsert(db, ANA, Directory({111: "ana-m"}))
 
-    assert "intra_id 222 now holds it" in caplog.text
-    assert "intra_id 111 renamed" in caplog.text
+    assert f"user {holder.id} renamed" in caplog.text
+    assert "111" not in caplog.text  # a 42 id would outlive a deletion (D30)
+    assert "222" not in caplog.text
