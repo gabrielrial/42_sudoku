@@ -28,7 +28,9 @@ starting the clock.
 - **A game session can never be restarted, reset or deleted.** Starting is
   irreversible. Clearing the grid is not a reset: the player may empty every
   cell they filled, and the session — its `started_at`, its official clock,
-  its submissions and its active time — stays exactly as it was (§3).
+  its submissions and its active time — stays exactly as it was (§3). The one
+  thing that removes a session is the user deleting their account, which removes
+  every session they have (§5).
 - A user may hold sessions for all three difficulties of the same day.
 - A session may only be created for **today's** puzzle. Once the date rolls over
   in Europe/Berlin, the previous day's puzzles are locked: no new session may
@@ -158,6 +160,11 @@ Written down so they are not discovered by surprise in three months.
 - There is no way to abandon a game deliberately. Within its own day, an
   unfinished session simply stays unfinished, and because restarting is
   forbidden, the user cannot try that puzzle again.
+- A user may delete their account at any time, and everything of theirs goes
+  with it: all their sessions, finished or not. Signing in again makes a new
+  account with no past, which may start today's puzzles afresh, including one
+  it has already seen. Accepted: the price of using that is losing every game
+  played so far (`DECISIONS.md` D30).
 - A session can end in one of three terminal states: completed, closed by
   rollover, or still open on the current day. Statistics need to distinguish
   the second from the third.
