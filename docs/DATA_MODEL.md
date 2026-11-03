@@ -110,7 +110,8 @@ Only the completion check and the generator ever read this table.
   invite enumeration. Authorisation blocks it anyway, but there is no reason to
   publish a count of how many games exist.
 - `UNIQUE (user_id, puzzle_id)` — this single constraint enforces D3. One game
-  per user per puzzle, forever, no restarts.
+  per user per puzzle, forever, no restarts. Only deleting the account removes
+  the row, and with it the constraint's memory of that game (D30).
 - No separate `INDEX (user_id)`: the unique constraint's index starts with
   `user_id`, so it already serves a user's history.
 - `INDEX (puzzle_id, completed_at) WHERE completed_at IS NOT NULL` for the
@@ -207,7 +208,7 @@ rather than the application:
 | Rule | Enforced by |
 |---|---|
 | One puzzle per day per difficulty (A1) | `UNIQUE (puzzle_date, difficulty)` |
-| One game per user per puzzle, no restarts (D3) | `UNIQUE (user_id, puzzle_id)` |
+| One game per user per puzzle, no restarts (D3), for as long as the account exists (D30) | `UNIQUE (user_id, puzzle_id)` |
 | A game is bound to its puzzle forever (D6/D7) | `puzzle_id` never updated; `ON DELETE RESTRICT` |
 | Grids are well-formed | `CHECK` regexes on `givens`, `state`, `solution` |
 

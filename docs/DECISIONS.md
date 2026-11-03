@@ -23,6 +23,7 @@ The frontend timer is decoration and is never submitted or trusted.
 
 ### D3 — A game can never be restarted
 Starting a puzzle is irreversible. No reset, no delete, no second attempt.
+(The one exception, since: deleting the account, D30.)
 
 ### D4 — Games are resumable within their own day
 The server holds the authoritative state. Every input is sent to the server,
@@ -430,9 +431,15 @@ hardest technique is unchanged by the refill. Generator version `"4"`.
 Decided 2026-11-02, by the developer. The deletion path Q8 asks for.
 
 `DELETE /api/users/me`, behind one confirmation, removes the `users` row. The
-foreign keys already cascade to `game_sessions` and `refresh_tokens`. Nothing is
-kept, not even a hash of the 42 id: the puzzles stay, being everyone's and holding
-nothing of theirs.
+foreign keys already cascade to `game_sessions` and `refresh_tokens`, at once, in
+that one request. Nothing stays in the database, not even a hash of the 42 id: the
+puzzles stay, being everyone's and holding nothing of theirs.
+
+Outside the database: the logs name users by `users.id`, which means nothing once
+the row is gone, never by their 42 id. The access log keeps IP addresses and game
+ids that no longer lead anywhere, and the in-memory rate limiters keep the same
+until swept. How long logs live, and backups once they exist (restoring one would
+bring a deleted user back), is Q8's retention decision.
 
 Signing in again makes a new account with no past, so someone could look at
 today's Hard, delete the account, and start it again knowing it. The alternatives
@@ -643,7 +650,8 @@ Nothing here blocks Phases 1–6. All of it should be settled before Phase 9.
 Real identities of real EU students. The deletion path is D30. Still needed: a
 short privacy note, and a decision on how long data is kept. They were due
 before stage 3, which passed without them; they are now due before anyone but
-the developer plays (Stage 7).
+the developer plays (Stage 7). The retention decision includes logs and backups
+(D30).
 
 ### Q9 — Is this graded as a 42 curriculum project?
 If so it may carry constraints — a required run command, a defence, forbidden

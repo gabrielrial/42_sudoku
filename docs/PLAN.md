@@ -33,7 +33,7 @@ Update 2026-10-21: Stage 1's code is done on `feature/oauth-completion`
 
 Update 2026-11-02: Stages 1 to 5 are merged into `origin/main` (pull requests
 #11 to #14); the local `main` has not pulled them. Stage 6 is on
-`feature/frontend-mvp`, not pushed in full and without a pull request. The
+`feature/frontend-mvp`, merged since with pull request #15. The
 bullets above describe 2026-10-20 and are history.
 
 ## Known problems, by impact
@@ -275,8 +275,7 @@ After 6e, still within the stage:
 development setup: Easy and Medium games played to completion with their times
 persisted, and a game left (signing out) and reopened with its digits intact.
 No Hard game has been finished yet; it uses the same code path. 6d (375 px)
-was checked on 2026-10-26 with the fake provider. Not done: the push and the
-pull request of `feature/frontend-mvp`.
+was checked on 2026-10-26 with the fake provider. Merged with pull request #15.
 
 Done: `ROADMAP.md` Phase 6 exit, by hand with the fake provider and with 42.
 
@@ -309,7 +308,7 @@ Done: several real users play at once from the LAN, signed in with 42.
 
 ## Open questions
 
-Already in `DECISIONS.md`: Q8 (GDPR, before stage 3), Q9 (42 curriculum
+Already in `DECISIONS.md`: Q8 (GDPR, before Stage 7), Q9 (42 curriculum
 project?), Q10 (public or private, licence), **Q11 (pre-generation: how many
 days ahead, what if it fails, who is alerted) — blocks Stage 4.**
 
