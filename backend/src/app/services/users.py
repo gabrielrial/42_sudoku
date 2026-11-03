@@ -28,6 +28,15 @@ def placeholder_login(intra_id: int) -> str:
     return f"former-{intra_id}"
 
 
+def delete_user(db: Session, user: User) -> None:
+    """Remove ``user`` and everything of theirs, for good (D30).
+
+    The database does the rest: ``game_sessions`` and ``refresh_tokens`` cascade.
+    """
+    db.delete(user)
+    db.commit()
+
+
 def upsert_user(db: Session, identity: Identity, provider: IdentityProvider) -> User:
     """The ``users`` row for ``identity``, created or refreshed, and flushed.
 

@@ -282,6 +282,10 @@ Done: `ROADMAP.md` Phase 6 exit, by hand with the fake provider and with 42.
 
 ### Stage 7 — Phase 7: LAN deployment 🔐 · `deploy/lan`
 
+Before it, on `feature/delete-account`: a user can delete their account and
+everything of theirs (D30), the deletion path of Q8. **Done 2026-11-02.** Q8's
+privacy note and retention period are still open, and due before this stage.
+
 Deployment compose: uvicorn without `--reload`, migrations on start, built
 front end served per P3 — answering every client path (`/games/…`) with
 `index.html`, as Vite's dev server does, or a reload of a game is a `404` — `FORWARDED_ALLOW_IPS`, HTTPS or `COOKIE_SECURE` per

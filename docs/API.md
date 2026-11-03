@@ -143,6 +143,15 @@ minutes later. That is the accepted cost in D15.
 
 The front end calls it on load to find out whether there is a session.
 
+### `DELETE /api/users/me`
+
+    ← 204  (both session cookies cleared)
+
+Deletes the caller's account, and with it all their games and refresh tokens, on
+every device (D30). It cannot be undone. `401` when nobody is signed in. Access
+tokens already issued fail from then on: the user they name is gone. Signing in
+with 42 again creates a new account, with no past.
+
 ---
 
 ## Puzzles

@@ -426,6 +426,21 @@ minimal Hards: 20 reach 30 givens, 19 reach 38, each in under a tenth of a
 second; the one that falls short is discarded and the search goes on. The
 hardest technique is unchanged by the refill. Generator version `"4"`.
 
+### D30 — A user can delete their account
+Decided 2026-11-02, by the developer. The deletion path Q8 asks for.
+
+`DELETE /api/users/me`, behind one confirmation, removes the `users` row. The
+foreign keys already cascade to `game_sessions` and `refresh_tokens`. Nothing is
+kept, not even a hash of the 42 id: the puzzles stay, being everyone's and holding
+nothing of theirs.
+
+Signing in again makes a new account with no past, so someone could look at
+today's Hard, delete the account, and start it again knowing it. The alternatives
+were a hash of the 42 id kept for some days, which is keeping personal data, or a
+deletion delayed to midnight. Rejected: whoever does this gives up every game they
+have played, so they never hold more than a day of history. This is the one
+exception to D3's "no delete" (`GAME_RULES.md` §2, §5).
+
 ### Q1 — The activity rule behind D6 (answered)
 
 | Parameter | Value |
@@ -625,8 +640,10 @@ Nothing here blocks Phases 1–6. All of it should be settled before Phase 9.
 ## Low — can be answered later, but do not forget
 
 ### Q8 — GDPR and privacy
-Real identities of real EU students. Needed before stage 3: a short privacy
-note, a documented deletion path, and a decision on how long data is kept.
+Real identities of real EU students. The deletion path is D30. Still needed: a
+short privacy note, and a decision on how long data is kept. They were due
+before stage 3, which passed without them; they are now due before anyone but
+the developer plays (Stage 7).
 
 ### Q9 — Is this graded as a 42 curriculum project?
 If so it may carry constraints — a required run command, a defence, forbidden
