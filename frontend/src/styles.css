@@ -118,6 +118,10 @@ body {
   color: var(--ink-soft);
 }
 
+.sign-in__notice {
+  margin: 0;
+}
+
 .sign-in__error {
   margin: 0;
   color: var(--danger);

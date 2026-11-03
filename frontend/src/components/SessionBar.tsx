@@ -5,26 +5,22 @@ import type { Me } from "../api/client";
 interface SessionBarProps {
   me: Me;
   onSignOut: () => void;
-  /** Rejects if the account could not be deleted. */
-  onDeleteAccount: () => Promise<void>;
+  /** Resolves to `null` once signed out, or to what to tell the user otherwise. */
+  onDeleteAccount: () => Promise<string | null>;
 }
 
 /** Who is signed in, and the ways out. */
 export function SessionBar({ me, onSignOut, onDeleteAccount }: SessionBarProps) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
 
   // A second tap, like starting a game (D25): it cannot be undone (D30).
   async function deleteAccount() {
     setDeleting(true);
-    setFailed(false);
-    try {
-      await onDeleteAccount();
-    } catch {
-      setFailed(true);
-      setDeleting(false);
-    }
+    setProblem(null);
+    setProblem(await onDeleteAccount());
+    setDeleting(false);
   }
 
   return (
@@ -41,7 +37,12 @@ export function SessionBar({ me, onSignOut, onDeleteAccount }: SessionBarProps) 
           >
             Delete account
           </button>
-          <button type="button" className="button button--quiet" onClick={onSignOut}>
+          <button
+            type="button"
+            className="button button--quiet"
+            disabled={deleting}
+            onClick={onSignOut}
+          >
             Sign out
           </button>
         </div>
@@ -52,9 +53,9 @@ export function SessionBar({ me, onSignOut, onDeleteAccount }: SessionBarProps) 
             Delete your account and all your games? This cannot be undone. Signing in again
             starts a new account with nothing from this one.
           </p>
-          {failed && (
+          {problem !== null && (
             <p className="account-delete__problem" role="alert">
-              The account could not be deleted. Please try again.
+              {problem}
             </p>
           )}
           <div className="slot__actions">
@@ -67,7 +68,7 @@ export function SessionBar({ me, onSignOut, onDeleteAccount }: SessionBarProps) 
               disabled={deleting}
               onClick={() => {
                 setConfirming(false);
-                setFailed(false);
+                setProblem(null);
               }}
             >
               Cancel
