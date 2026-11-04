@@ -472,9 +472,15 @@ GDPR asks that data be kept no longer than its purpose needs. The hourly
 `puzzles` round deletes what is older. It cascades with the game and the user, so
 deleting an account still removes everything of theirs from the database (D30).
 
-Nothing reads the solution to write it, and no endpoint serves it: a history of
-moves, shown back, would be no oracle, but there is no need to find out. The
+Nothing reads the solution to write it, and no endpoint may ever serve it to
+anyone but the player who typed it: once a game is solved, its rows spell out the
+solution of a puzzle others are still playing, as a solved grid already does. The
 privacy note must say that each digit typed is recorded (Q8).
+
+To replay a game, order by `id`, not by time: every writer holds the game's lock
+when its id is assigned, while `played_at` follows the clock, which can step back.
+Deleting an account locks the user's games before the user, the order a move takes
+them in, or the two would deadlock.
 
 ### Q1 — The activity rule behind D6 (answered)
 
@@ -679,7 +685,7 @@ Real identities of real EU students. The deletion path is D30. Still needed: a
 short privacy note, and a decision on how long data is kept. They were due
 before stage 3, which passed without them; they are now due before anyone but
 the developer plays (Stage 7). The retention decision includes logs and backups
-(D30).
+(D30). The note must say that each digit typed is recorded for 30 days (D31).
 
 ### Q9 — Is this graded as a 42 curriculum project?
 If so it may carry constraints — a required run command, a defence, forbidden

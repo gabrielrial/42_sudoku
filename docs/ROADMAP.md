@@ -1,9 +1,9 @@
 # Roadmap
 
 **Current phase: Phase 7 — LAN deployment, not started.** Phases 0 to 6 are
-merged: Stages 1 to 6 of `PLAN.md`, the last through pull request #15. Before
-Phase 7: account deletion (`DECISIONS.md` D30), on `feature/delete-account`, and
-the rest of Q8.
+merged: Stages 1 to 6 of `PLAN.md`, the last through pull request #15, and account
+deletion (`DECISIONS.md` D30) through #16. Before Phase 7: the record of moves
+(D31), on `feature/move-log`, and the rest of Q8.
 
 A demo board — one fixed puzzle you can fill in, nothing else — was pulled
 forward from Phase 6 at the developer's request. See `DECISIONS.md` A5. It
