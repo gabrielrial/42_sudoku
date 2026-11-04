@@ -1,7 +1,9 @@
 """The record of each player's moves (D31): what is written, and what is not."""
 
 import uuid
+from collections.abc import Callable, Iterator
 from datetime import date, datetime, timedelta
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,6 +16,9 @@ from app.database.models.game_moves import GameMove
 from app.database.models.game_sessions import GameSession
 from app.database.models.puzzles import Puzzle
 from app.database.models.users import User
+from app.services import games as games_service
+from app.services.game_status import Status
+from app.services.games import OwnedGame, clear_cells, complete, play_cell
 from app.services.moves import purge_old_moves
 from tests.api.games import GAMES, GIVENS, NOW, SOLUTION, make_puzzle, other_user, start
 from tests.api.helpers import sign_in
@@ -170,12 +175,30 @@ def test_it_is_indexed_by_user_and_by_game(db: Session) -> None:
     }
 
 
-def test_an_input_without_its_cell_is_refused_by_the_database(
-    db: Session, game_id: str, user: User
-) -> None:
-    db.add(GameMove(game_id=uuid.UUID(game_id), user_id=user.id, kind="input", played_at=NOW))
+AN_INPUT = {"kind": "input", "cell": 0, "previous_value": 0, "value": 1}
 
-    with pytest.raises(IntegrityError):
+
+@pytest.mark.parametrize(
+    ("fields", "constraint"),
+    [
+        ({"kind": "nonsense"}, "game_moves_kind_check"),
+        ({"kind": "input"}, "game_moves_input_check"),
+        ({"kind": "clear", "cell": 3, "previous_value": 0, "value": 1}, "game_moves_input_check"),
+        ({"kind": "check"}, "game_moves_check_check"),
+        ({"kind": "clear", "correct": True}, "game_moves_check_check"),
+        ({**AN_INPUT, "cell": 81}, "game_moves_cell_check"),
+        ({**AN_INPUT, "cell": -1}, "game_moves_cell_check"),
+        ({**AN_INPUT, "previous_value": 10}, "game_moves_previous_value_check"),
+        ({**AN_INPUT, "value": 10}, "game_moves_value_check"),
+        ({**AN_INPUT, "value": -1}, "game_moves_value_check"),
+    ],
+)
+def test_the_database_refuses_a_nonsense_row(
+    db: Session, game_id: str, user: User, fields: dict[str, Any], constraint: str
+) -> None:
+    db.add(GameMove(game_id=uuid.UUID(game_id), user_id=user.id, played_at=NOW, **fields))
+
+    with pytest.raises(IntegrityError, match=constraint):
         db.flush()
     db.rollback()
 
@@ -245,3 +268,101 @@ def test_the_purge_is_committed(db_engine: Engine) -> None:
             cleanup.execute(delete(User).where(User.id == user_id))
             cleanup.execute(delete(Puzzle).where(Puzzle.id == puzzle_id))
             cleanup.commit()
+
+
+# --- a move and its action are one (D31) --------------------------------------------------
+# With real sessions: the ``db`` fixture turns ``commit()`` into a savepoint, so
+# the tests above could not tell one transaction from two.
+
+GAP = timedelta(seconds=90)
+
+
+@pytest.fixture
+def real_game(db_engine: Engine) -> Iterator[uuid.UUID]:
+    """A committed game with its grid full and right, ready for any of the three."""
+    with Session(db_engine) as setup:
+        user = User(intra_id=4444, login="one-transaction", campus_id=1, campus_name="Berlin")
+        setup.add(user)
+        puzzle = make_puzzle(setup, date(2000, 1, 2), "easy")
+        setup.flush()
+        game = GameSession(user_id=user.id, puzzle_id=puzzle.id, state=SOLUTION)
+        setup.add(game)
+        setup.commit()
+        user_id, puzzle_id, game_id = user.id, puzzle.id, game.id
+    try:
+        yield game_id
+    finally:
+        with Session(db_engine) as cleanup:
+            cleanup.execute(delete(User).where(User.id == user_id))
+            cleanup.execute(delete(Puzzle).where(Puzzle.id == puzzle_id))
+            cleanup.commit()
+
+
+def _owned(session: Session, game_id: uuid.UUID) -> OwnedGame:
+    game = session.get(GameSession, game_id)
+    assert game is not None
+    puzzle = session.get(Puzzle, game.puzzle_id)
+    assert puzzle is not None
+    return OwnedGame(game, puzzle, Status.IN_PROGRESS, NOW)
+
+
+def _boom(*_: object, **__: object) -> None:
+    raise RuntimeError("failed half way")
+
+
+@pytest.mark.parametrize(
+    ("step", "action"),
+    [
+        # What runs after the move is added, failing: nothing may have been kept.
+        ("_touch", lambda db, owned: play_cell(db, owned, EMPTY[0], None, GAP)),
+        ("_touch", lambda db, owned: clear_cells(db, owned, GAP)),
+        # ``complete`` adds its move last: failing there, its other writes must go.
+        ("_move", lambda db, owned: complete(db, owned, GAP)),
+    ],
+    ids=["input", "clear", "check"],
+)
+def test_a_move_and_its_action_are_saved_together_or_not_at_all(
+    db_engine: Engine,
+    real_game: uuid.UUID,
+    monkeypatch: pytest.MonkeyPatch,
+    step: str,
+    action: Callable[[Session, OwnedGame], object],
+) -> None:
+    with Session(db_engine) as observer:
+        before = observer.get(GameSession, real_game)
+        assert before is not None
+        state, submissions = before.state, before.submission_count
+    monkeypatch.setattr(games_service, step, _boom)
+
+    with Session(db_engine) as session, pytest.raises(RuntimeError, match="half way"):
+        action(session, _owned(session, real_game))
+
+    with Session(db_engine) as observer:
+        after = observer.get(GameSession, real_game)
+        assert after is not None
+        assert (after.state, after.submission_count) == (state, submissions)
+        moves = select(GameMove).where(GameMove.game_id == real_game)
+        assert list(observer.scalars(moves)) == []
+
+
+@pytest.mark.parametrize(
+    ("action", "kind"),
+    [
+        (lambda db, owned: play_cell(db, owned, EMPTY[0], None, GAP), "input"),
+        (lambda db, owned: clear_cells(db, owned, GAP), "clear"),
+        (lambda db, owned: complete(db, owned, GAP), "check"),
+    ],
+    ids=["input", "clear", "check"],
+)
+def test_the_move_is_committed_with_its_action(
+    db_engine: Engine,
+    real_game: uuid.UUID,
+    action: Callable[[Session, OwnedGame], object],
+    kind: str,
+) -> None:
+    with Session(db_engine) as session:
+        action(session, _owned(session, real_game))
+
+    with Session(db_engine) as observer:
+        moves = select(GameMove).where(GameMove.game_id == real_game)
+        assert [m.kind for m in observer.scalars(moves)] == [kind]
