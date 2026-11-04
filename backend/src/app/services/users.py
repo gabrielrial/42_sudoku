@@ -28,6 +28,15 @@ def placeholder_login(intra_id: int) -> str:
     return f"former-{intra_id}"
 
 
+def delete_user(db: Session, user: User) -> None:
+    """Remove ``user`` and everything of theirs, for good (D30).
+
+    The database does the rest: ``game_sessions`` and ``refresh_tokens`` cascade.
+    """
+    db.delete(user)
+    db.commit()
+
+
 def upsert_user(db: Session, identity: Identity, provider: IdentityProvider) -> User:
     """The ``users`` row for ``identity``, created or refreshed, and flushed.
 
@@ -60,11 +69,8 @@ def _free_login(db: Session, identity: Identity, provider: IdentityProvider) -> 
 
     holder.login = _current_login(db, holder, provider) or placeholder_login(holder.intra_id)
     db.flush()
-    logger.warning(
-        "login taken over: intra_id %s now holds it; intra_id %s renamed",
-        identity.intra_id,
-        holder.intra_id,
-    )
+    # By ``users.id``: it means nothing once the row is gone (D30), a 42 id would.
+    logger.warning("login taken over: user %s renamed", holder.id)
 
 
 def _current_login(db: Session, holder: User, provider: IdentityProvider) -> str | None:
@@ -72,7 +78,7 @@ def _current_login(db: Session, holder: User, provider: IdentityProvider) -> str
     try:
         login = provider.current_login(holder.intra_id)
     except IdentityProviderError as exc:
-        logger.warning("could not ask 42 for intra_id %s's login: %s", holder.intra_id, exc)
+        logger.warning("could not ask 42 for user %s's login: %s", holder.id, exc)
         return None
     if login is None:
         return None  # 42 does not know the account

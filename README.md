@@ -6,12 +6,11 @@ everyone, with authentication through the official 42 OAuth2 API.
 
 Application timezone: Europe/Berlin.
 
-**Status: the MVP is built (Phase 6), not yet merged or deployed.** The Sudoku
+**Status: the MVP is built (Phase 6), not yet deployed.** The Sudoku
 engine generates and grades puzzles, stored seven days ahead; signing in with
 42 works; the front end shows today's three puzzles, saves every input, keeps
-the clock and checks the finished grid. Phases 0 to 5 are merged on GitHub
-(`origin/main`); Phase 6 is on `feature/frontend-mvp`, awaiting its pull
-request. No deployment yet. See `docs/ROADMAP.md`.
+the clock and checks the finished grid. No deployment yet. See
+`docs/ROADMAP.md`.
 
 ## Running it locally
 

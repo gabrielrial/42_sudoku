@@ -134,9 +134,12 @@ Notes beyond the numbers:
   access log, which writes whole URLs: every URL is logged without its query
   (`app/access_log.py`). A proxy put in front of the API must do the same. It
   also covers database errors, whose text would quote the bound parameters
-  (`state`, the PKCE verifier): the engine hides them (`hide_parameters`).
-- GDPR applies — real people's identities, in the EU. A privacy note and a
-  deletion path are needed before Stage 3 (`DECISIONS.md` Q8).
+  (`state`, the PKCE verifier): the engine hides them (`hide_parameters`). Logs
+  name a user by `users.id`, never by their 42 id, which would outlive a deleted
+  account (`DECISIONS.md` D30).
+- GDPR applies — real people's identities, in the EU. Users can delete their
+  account and everything of theirs (`DECISIONS.md` D30). A privacy note and a
+  retention period are still needed before Stage 7 (`DECISIONS.md` Q8).
 
 ## Standard controls
 

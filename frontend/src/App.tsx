@@ -6,7 +6,7 @@ import { GamePage } from "./pages/GamePage";
 import { HomePage } from "./pages/HomePage";
 import { SignInPage } from "./pages/SignInPage";
 import { followLink, HOME_PATH, type Route, useRoute } from "./router";
-import { loadSession, type Session, takeLoginError } from "./session/session";
+import { deleteAccount, loadSession, type Session, takeLoginError } from "./session/session";
 
 /** Who is here decides what is shown; for a signed-in user, the path does. */
 export function App() {
@@ -14,6 +14,7 @@ export function App() {
   const [session, setSession] = useState<Session>({ kind: "loading" });
   // Read once; StrictMode may call this twice, so it must not touch the URL.
   const [loginError, setLoginError] = useState(() => takeLoginError(window.location.href));
+  const [notice, setNotice] = useState<string | null>(null);
 
   const check = useCallback(() => {
     setSession({ kind: "loading" });
@@ -45,6 +46,15 @@ export function App() {
     }
   }, []);
 
+  // What the sign-in page cannot tell by itself, or else the bar's to report.
+  const onDeleteAccount = useCallback(async () => {
+    const deletion = await deleteAccount(api.deleteAccount);
+    if (!deletion.signedOut) return deletion.message;
+    setNotice(deletion.message);
+    setSession({ kind: "signed_out" });
+    return null;
+  }, []);
+
   switch (session.kind) {
     case "loading":
       return <p className="status">Loading…</p>;
@@ -58,11 +68,11 @@ export function App() {
         </div>
       );
     case "signed_out":
-      return <SignInPage error={loginError.message} />;
+      return <SignInPage error={loginError.message} notice={notice} />;
     case "signed_in":
       return (
         <>
-          <SessionBar me={session.me} onSignOut={signOut} />
+          <SessionBar me={session.me} onSignOut={signOut} onDeleteAccount={onDeleteAccount} />
           <Page route={route} />
         </>
       );

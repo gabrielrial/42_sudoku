@@ -1,9 +1,72 @@
 import { describe, expect, it } from "vitest";
 
-import { ApiError } from "../api/client";
-import { loadSession, takeLoginError } from "./session";
+import { ApiError, createClient } from "../api/client";
+import { deleteAccount, loadSession, takeLoginError } from "./session";
 
 const ANA = { login: "ana", campus_name: "Berlin" };
+
+describe("deleteAccount", () => {
+  const answering = (status: number) => async () => {
+    throw new ApiError("some_code", status, "…");
+  };
+
+  it("says it is done only when the server said so", async () => {
+    const deletion = await deleteAccount(async () => {});
+
+    expect(deletion.signedOut).toBe(true);
+    expect(deletion.message).toMatch(/have been deleted/);
+  });
+
+  it("says nothing was deleted when the session had already ended", async () => {
+    const deletion = await deleteAccount(answering(401));
+
+    expect(deletion.signedOut).toBe(true);
+    expect(deletion.message).toMatch(/deleted nothing/);
+    expect(deletion.message).not.toMatch(/have been deleted/);
+  });
+
+  it("says the session had ended through the real client too", async () => {
+    // The client signs out before it throws: the page changes first, and this
+    // message is the only thing telling that page from a real deletion.
+    const api = createClient({
+      fetch: async () =>
+        new Response(JSON.stringify({ error: { code: "not_authenticated", message: "…" } }), {
+          status: 401,
+        }),
+      lock: (task) => task(),
+      base: "/api",
+    });
+    let signedOut = 0;
+    api.onSignedOut(() => signedOut++);
+
+    const deletion = await deleteAccount(api.deleteAccount);
+
+    expect(signedOut).toBe(1);
+    expect(deletion.message).toMatch(/deleted nothing/);
+  });
+
+  it("stays, and says no, on a refusal", async () => {
+    const deletion = await deleteAccount(answering(403));
+
+    expect(deletion.signedOut).toBe(false);
+    expect(deletion.message).toMatch(/was not deleted/);
+  });
+
+  it.each([
+    ["a server error", answering(502)],
+    [
+      "no answer",
+      async () => {
+        throw new TypeError("Failed to fetch");
+      },
+    ],
+  ])("does not claim either way on %s: it may have happened", async (_, remove) => {
+    const deletion = await deleteAccount(remove);
+
+    expect(deletion.signedOut).toBe(false);
+    expect(deletion.message).toMatch(/could not confirm/);
+  });
+});
 
 describe("loadSession", () => {
   it("is signed in when /users/me answers", async () => {
@@ -45,6 +108,7 @@ describe("takeLoginError", () => {
     ["provider_error", /42 could not be reached/],
     ["no_primary_campus", /no primary campus/],
     ["too_many_requests", /Too many sign-in attempts/],
+    ["sign_in_conflict", /changed while you were signing in/],
   ])("has its own message for %s", (code, message) => {
     expect(takeLoginError(`http://localhost:5173/?login_error=${code}`).message).toMatch(message);
   });

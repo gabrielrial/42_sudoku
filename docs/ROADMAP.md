@@ -1,11 +1,9 @@
 # Roadmap
 
-**Current phase: Phase 6 — front end; its exit condition is met (2026-11-02),
-and the push and the pull request of `feature/frontend-mvp` are not done yet.**
-Phases 0 to 5 are merged: Stages 1 to 5 of `PLAN.md` through pull requests
-#11 to #14, up to `origin/main`. The local `main` is behind
-`origin/main` and has not pulled them. Phase 6 is only on `feature/frontend-mvp`,
-which is not merged. Next: Phase 7.
+**Current phase: Phase 7 — LAN deployment, not started.** Phases 0 to 6 are
+merged: Stages 1 to 6 of `PLAN.md`, the last through pull request #15. Before
+Phase 7: account deletion (`DECISIONS.md` D30), on `feature/delete-account`, and
+the rest of Q8.
 
 A demo board — one fixed puzzle you can fill in, nothing else — was pulled
 forward from Phase 6 at the developer's request. See `DECISIONS.md` A5. It
@@ -140,13 +138,12 @@ Status (2026-10-24, Stage 5 of `PLAN.md`): built. Today's puzzles, starting,
 resuming, inputs, heartbeats and completion, each with its rate limit and its
 authorisation, and a test that walks them all looking for the solution.
 
-## Phase 6 — Frontend (exit condition met; not merged)
+## Phase 6 — Frontend (complete)
 
 Login flow, home page, board, input, resume, heartbeat, timer display,
 completion state.
 
-Status (2026-11-02, Stage 6 of `PLAN.md`): built on `feature/frontend-mvp`,
-which has been neither pushed in full nor opened as a pull request. The exit
+Status (2026-11-02, Stage 6 of `PLAN.md`): merged with pull request #15. The exit
 condition below was met by hand with a real 42 account on the development
 setup: Easy and Medium games played to completion with their times persisted,
 and a game left (signing out) and reopened with its digits intact. No Hard game
