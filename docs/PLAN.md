@@ -60,8 +60,9 @@ Necessary — bugs and security holes:
 9. ✅ The fake identity provider is only refused in `production`, and compose
    enables it by default: a LAN deployment with `APP_ENV=development` lets
    anyone in. It also hard-codes `localhost:8001` and a plausible real login.
-10. `Secure` cookies are tied to `APP_ENV=production`: over plain HTTP on the
-    LAN the browser drops them and nobody can sign in.
+10. ~~`Secure` cookies are tied to `APP_ENV=production`: over plain HTTP on the
+    LAN the browser drops them and nobody can sign in.~~ — no longer applies
+    2026-11-04: the first deployment has HTTPS through ngrok (D32).
 11. ✅ Tests build the schema with `create_all`; migrations are never exercised
     in CI (how `LESSONS.md` 12 and 13 got through).
 12. ✅ "0 skipped" does not hold: the published-puzzle tests always skip, and
@@ -279,23 +280,28 @@ was checked on 2026-10-26 with the fake provider. Merged with pull request #15.
 
 Done: `ROADMAP.md` Phase 6 exit, by hand with the fake provider and with 42.
 
-### Stage 7 — Phase 7: LAN deployment 🔐 · `deploy/lan`
+### Stage 7 — Phase 7: first deployment, through ngrok 🔐 · `deploy/first`
+
+A small test on the internet rather than a LAN (D32).
 
 Before it, on `feature/delete-account`: a user can delete their account and
-everything of theirs (D30), the deletion path of Q8. **Done 2026-11-02.** Q8's
-privacy note and retention period are still open, and due before this stage;
-the note must say that each digit typed is recorded. On `feature/move-log`:
-every move recorded for 30 days (D31).
+everything of theirs (D30), the deletion path of Q8. **Done 2026-11-02.** Every
+move recorded for 30 days (D31), on `feature/move-log`. The privacy note at
+`/privacy` and rotated logs (Q8, answered), on `feature/privacy-note`.
 
 Deployment compose: uvicorn without `--reload`, migrations on start, built
-front end served per P3 — answering every client path (`/games/…`) with
-`index.html`, as Vite's dev server does, or a reload of a game is a `404` — `FORWARDED_ALLOW_IPS`, HTTPS or `COOKIE_SECURE` per
-P2, stricter fake-provider guard per P4, purge of expired `refresh_tokens` and
+front end served by FastAPI (D32) — answering every client path (`/games/…`,
+`/privacy`) with `index.html`, as Vite's dev server does, or a reload of a game is
+a `404` — the ngrok agent as a compose service, `APP_ENV=production` so that cookies
+are `Secure`, the ngrok address registered with 42, `FORWARDED_ALLOW_IPS`, a try of
+the return from 42 through ngrok's interstitial, stricter fake-provider guard per
+P4, purge of expired `refresh_tokens` and
 `oauth_states` in the scheduled job.
 
 Two logging points. A proxy in front of the API must not log query strings:
 the sign-in callback carries the authorization code and `state` there
-(`SECURITY.md`). And the Vite proxy in `frontend/vite.config.ts`, which logs
+(`SECURITY.md`). ngrok is an accepted exception for this test (D32): look again
+before going further. And the Vite proxy in `frontend/vite.config.ts`, which logs
 whole URLs when the API is down, is development only; it goes away with the
 deployment, because Vite is not there.
 
@@ -304,13 +310,13 @@ reaches the internet through one public address — five sign-ins a minute
 for everybody on it. Behind a proxy, every user also shares the proxy's
 address unless `FORWARDED_ALLOW_IPS` is set (`SECURITY.md`).
 
-Done: several real users play at once from the LAN, signed in with 42.
+Done: several real users play at once through ngrok, signed in with 42.
 
 ---
 
 ## Open questions
 
-Already in `DECISIONS.md`: Q8 (GDPR, before Stage 7), Q9 (42 curriculum
+Already in `DECISIONS.md`: Q9 (42 curriculum
 project?), Q10 (public or private, licence), **Q11 (pre-generation: how many
 days ahead, what if it fails, who is alerted) — blocks Stage 4.**
 
@@ -319,8 +325,8 @@ New, numbered `P` so they cannot collide with `DECISIONS.md`:
 | # | Question | Needed by | Proposal |
 |---|---|---|---|
 | ~~P1~~ | ~~How the generation job runs~~ | Stage 4 | **Answered 2026-10-23: its own compose service** (Q11) |
-| P2 | Cookies on the LAN: HTTPS through a proxy (Caddy, mkcert), or a `COOKIE_SECURE` setting independent of `APP_ENV` | Stage 7 | HTTPS: plain HTTP also loses the cross-tab refresh lock, which only exists in a secure context (D15) |
-| P3 | Serving the built front end: FastAPI `StaticFiles` (one origin, nothing new) or an nginx/Caddy container | Stage 7 | FastAPI |
+| ~~P2~~ | ~~Cookies on the LAN: HTTPS through a proxy, or a `COOKIE_SECURE` setting~~ | Stage 7 | **Answered 2026-11-04: HTTPS through ngrok** — D32 |
+| ~~P3~~ | ~~Serving the built front end~~ | Stage 7 | **Answered 2026-11-04: FastAPI** — D32 |
 | ~~P4~~ | ~~Fake provider: deployments must declare their environment; fake accepts `?as=<login>` to test with several users~~ | Stage 1 | **Answered 2026-10-20: yes to both** — D19 (Stage 1f) |
 | ~~P5~~ | ~~Database tests without `sudoku_test`: always fail, or fail unless an opt-out variable is set~~ | Stage 2 | **Answered 2026-10-20: always fail (A)** — D20 |
 | ~~P6~~ | ~~Makefile default goal: `all` instead of the destructive `re`~~ | Stage 2 | **Answered 2026-10-21: `all`** |
