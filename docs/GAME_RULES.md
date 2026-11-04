@@ -42,6 +42,11 @@ starting the clock.
 
 - The server holds the authoritative game state.
 - Every user input is sent to the server, validated, and persisted.
+- Each accepted input, each clear and each full-grid check is also recorded, with
+  its time, to diagnose failures. The record is kept for **30 days**
+  (configuration), goes with the account if it is deleted, and is never shown to
+  anyone through the API. It holds what was typed, not whether it was right; only
+  a check holds its answer, the one the player was told (`DECISIONS.md` D31).
 - Input requests are rate-limited server-side. A client cannot submit inputs
   faster than the limit, whatever it sends.
 
