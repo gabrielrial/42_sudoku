@@ -1,9 +1,10 @@
 # Roadmap
 
-**Current phase: Phase 7 — LAN deployment, not started.** Phases 0 to 6 are
+**Current phase: Phase 7 — first deployment, not started.** Phases 0 to 6 are
 merged: Stages 1 to 6 of `PLAN.md`, the last through pull request #15, and account
 deletion (`DECISIONS.md` D30) through #16. Before Phase 7: the record of moves
-(D31), on `feature/move-log`, and the rest of Q8.
+(D31), on `feature/move-log`, and the privacy note and rotated logs (Q8), on
+`feature/privacy-note`.
 
 A demo board — one fixed puzzle you can fill in, nothing else — was pulled
 forward from Phase 6 at the developer's request. See `DECISIONS.md` A5. It
@@ -162,10 +163,11 @@ support retained on desktop.
 Exit: **MVP complete.** A real 42 user can log in, get today's puzzle, play it,
 leave the page, come back, finish it, and see the result persisted correctly.
 
-## Phase 7 — Local network deployment
+## Phase 7 — First deployment, through ngrok
 
-Run on a machine reachable from the LAN. Validate with several real users at
-once before anything is public.
+A small test on the internet rather than a LAN (`DECISIONS.md` D32): one machine,
+reached through ngrok's free plan, with few enough players to fit its limits.
+Validate with several real users at once before going further.
 
 ## Phase 8 — Statistics and leaderboard
 

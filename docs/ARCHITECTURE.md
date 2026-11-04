@@ -84,11 +84,11 @@ Three stages, in order. Each one is only started when the previous is stable.
 **Stage 1 — Local development.** Everything on the developer's machine: backend,
 frontend, PostgreSQL, via Docker Compose. This is the environment CI mirrors.
 
-**Stage 2 — Local network.** The application runs on one machine on the LAN and
-is reachable from other machines on that network. The point is validating with
-several real users before going public. Notable consequence: the 42 OAuth
-application needs a redirect URI for that machine's LAN address, and the app can
-no longer assume `localhost`.
+**Stage 2 — A small test, through ngrok.** The application runs on one machine and
+reaches the internet through ngrok's free plan, rather than staying on a LAN
+(`DECISIONS.md` D32). The point is validating with several real users before going
+further. Notable consequence: the 42 OAuth application needs a redirect URI for the
+ngrok address, and the app can no longer assume `localhost`.
 
 **Stage 3 — Public.** A publicly reachable server, with HTTPS, real secrets
 management, backups and logging. The hosting provider is chosen when this stage
