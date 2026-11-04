@@ -148,8 +148,8 @@ The front end calls it on load to find out whether there is a session.
 
     ← 204  (both session cookies cleared)
 
-Deletes the caller's account, and with it all their games and refresh tokens, on
-every device (D30). It cannot be undone. `401` when nobody is signed in. Access
+Deletes the caller's account, and with it all their games, recorded moves (D31)
+and refresh tokens, on every device (D30). It cannot be undone. `401` when nobody is signed in. Access
 tokens already issued fail from then on: the user they name is gone. Signing in
 with 42 again creates a new account, with no past.
 
@@ -397,4 +397,4 @@ current and longest streak; history.
 | Anything returning a solution | The one hard rule in `SECURITY.md` |
 | Any per-cell "is this right?" check | The oracle (A4) |
 | `DELETE /api/games/{id}` | Games cannot be restarted or abandoned (D3) |
-| A move history endpoint | No move log (D14) |
+| A move history endpoint | Moves are recorded to diagnose failures, not to be served (D31) |

@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "test", "production"]
@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     # Per game session too (D5).
     game_heartbeats_per_minute: int = 2
     game_completions_per_minute: int = 5
+    # How long the record of each player's moves is kept (D31).
+    move_log_days: int = Field(default=30, gt=0)
 
     @property
     def is_production(self) -> bool:

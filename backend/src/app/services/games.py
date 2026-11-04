@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.clock import seconds_between, today
+from app.database.models.game_moves import GameMove
 from app.database.models.game_sessions import GameSession
 from app.database.models.puzzles import DIFFICULTIES, Puzzle, PuzzleSolution
 from app.database.models.users import User
@@ -283,6 +284,15 @@ def play_cell(db: Session, owned: OwnedGame, index: int, value: int | None, gap:
             "cell_is_given", "That cell is part of the puzzle.", status.HTTP_409_CONFLICT
         )
     digit = "0" if value is None else str(value)
+    db.add(
+        _move(
+            owned,
+            "input",
+            cell=index,
+            previous_value=int(game.state[index]),
+            value=int(digit),
+        )
+    )
     game.state = game.state[:index] + digit + game.state[index + 1 :]
     _touch(owned, gap)
     db.commit()
@@ -296,6 +306,7 @@ def clear_cells(db: Session, owned: OwnedGame, gap: timedelta) -> None:
     is activity like one.
     """
     game = _open(owned)
+    db.add(_move(owned, "clear"))
     game.state = owned.puzzle.givens
     _touch(owned, gap)
     db.commit()
@@ -316,6 +327,12 @@ def _open(owned: OwnedGame) -> GameSession:
             "game_completed", "This game is already completed.", status.HTTP_409_CONFLICT
         )
     return owned.game
+
+
+def _move(owned: OwnedGame, kind: str, **fields: int | bool) -> GameMove:
+    """The record of an action (D31), committed with the action itself."""
+    game = owned.game
+    return GameMove(game_id=game.id, user_id=game.user_id, kind=kind, played_at=owned.now, **fields)
 
 
 def _touch(owned: OwnedGame, gap: timedelta) -> None:
@@ -365,6 +382,7 @@ def complete(db: Session, owned: OwnedGame, gap: timedelta) -> Completion:
     # Constant time: an ordinary comparison stops at the first difference, and
     # how long it took would hint at how many leading cells are right.
     correct = secrets.compare_digest(game.state.encode(), solution.solution.encode())
+    db.add(_move(owned, "check", correct=correct))
     if correct:
         game.completed_at = owned.now  # only ever written after this check (D2)
         # Gaps are rounded one by one, so their sum can creep past the wall

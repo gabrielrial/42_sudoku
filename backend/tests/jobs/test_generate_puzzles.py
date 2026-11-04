@@ -49,6 +49,7 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> Calls:
     recorder = Calls()
     monkeypatch.setattr(job, "ensure_puzzles", recorder)
     monkeypatch.setattr(job, "SessionFactory", _NoSession)
+    monkeypatch.setattr(job, "purge_old_moves", lambda *_: 0)
     return recorder
 
 
@@ -69,6 +70,69 @@ def _sleeper(rounds: int) -> tuple[list[float], object]:
 
 
 # --- one round -----------------------------------------------------------------------------
+
+
+def test_each_round_purges_the_moves_past_their_retention(
+    calls: Calls, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    instant = datetime(2026, 11, 4, 12, 0, tzinfo=clock.UTC)
+    _at(monkeypatch, instant)
+    purges: list[tuple[datetime, int]] = []
+
+    def purge(_db: object, now: datetime, days: int) -> int:
+        purges.append((now, days))
+        return 0
+
+    monkeypatch.setattr(job, "purge_old_moves", purge)
+
+    job.main([])
+
+    assert purges == [(instant, 30)]  # the 30 days of GAME_RULES.md §3
+
+
+def test_moves_are_purged_even_when_puzzles_cannot_be_made(
+    calls: Calls, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # D31: nothing wrong with the generator may keep moves past their 30 days.
+    purges: list[object] = []
+    monkeypatch.setattr(job, "purge_old_moves", lambda *args: purges.append(args) or 0)
+    calls.answers = [RuntimeError("the grader broke")]
+
+    with pytest.raises(RuntimeError):
+        job.main([])
+
+    assert len(purges) == 1
+
+
+def test_a_failed_purge_does_not_stop_the_puzzles_and_is_reported(
+    calls: Calls, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    def broken(*_: object) -> int:
+        raise RuntimeError("the database went away")
+
+    monkeypatch.setattr(job, "purge_old_moves", broken)
+
+    with caplog.at_level(logging.ERROR, logger="app.jobs.generate_puzzles"):
+        status = job.main([])
+
+    assert calls.made  # the puzzles were still seen to
+    assert status == 1  # and the command says something went wrong
+    assert "could not delete the moves" in caplog.text
+
+
+def test_a_failed_purge_does_not_break_the_loop(
+    calls: Calls, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(*_: object) -> int:
+        raise RuntimeError("the database went away")
+
+    monkeypatch.setattr(job, "purge_old_moves", broken)
+    waits, sleep = _sleeper(rounds=2)
+
+    with pytest.raises(Stop):
+        job.main(["--every", "3600"], sleep=sleep)  # type: ignore[arg-type]
+
+    assert waits == [3600, 3600]  # an ordinary wait: the puzzles were fine
 
 
 def test_today_is_the_berlin_day(calls: Calls, monkeypatch: pytest.MonkeyPatch) -> None:

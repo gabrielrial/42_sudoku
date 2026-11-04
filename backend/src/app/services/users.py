@@ -17,6 +17,7 @@ import logging
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.database.models.game_sessions import GameSession
 from app.database.models.users import User
 from app.services.identity_provider import Identity, IdentityProvider, IdentityProviderError
 
@@ -31,8 +32,20 @@ def placeholder_login(intra_id: int) -> str:
 def delete_user(db: Session, user: User) -> None:
     """Remove ``user`` and everything of theirs, for good (D30).
 
-    The database does the rest: ``game_sessions`` and ``refresh_tokens`` cascade.
+    The database does the rest: ``game_sessions``, ``game_moves`` and
+    ``refresh_tokens`` cascade.
+
+    The games are locked first, in the order a move takes them: an input locks
+    its game, then its ``game_moves`` row needs the user. Deleting the user first
+    would hold the two the other way round, and one of the requests would die in
+    a deadlock.
     """
+    db.execute(
+        select(GameSession.id)
+        .where(GameSession.user_id == user.id)
+        .order_by(GameSession.id)
+        .with_for_update()
+    )
     db.delete(user)
     db.commit()
 

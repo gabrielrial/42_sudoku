@@ -45,6 +45,17 @@ def test_app_env_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
         Settings(_env_file=None, secret_key=GOOD_KEY, database_url="postgresql+psycopg://u:p@h/x")
 
 
+def test_moves_are_kept_30_days_by_default() -> None:
+    assert _settings().move_log_days == 30  # GAME_RULES.md §3, D31
+
+
+@pytest.mark.parametrize("days", [0, -1])
+def test_a_retention_that_would_wipe_the_record_is_refused(days: int) -> None:
+    # The hourly round deletes what is older than this: zero or less is everything.
+    with pytest.raises(ValidationError, match="move_log_days"):
+        _settings(move_log_days=days)
+
+
 @pytest.mark.parametrize("env", ["development", "test"])
 def test_the_fake_provider_is_allowed_outside_production(env: str) -> None:
     assert _settings(app_env=env, auth_fake_provider_enabled=True).auth_fake_provider_enabled

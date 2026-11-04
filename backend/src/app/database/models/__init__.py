@@ -6,10 +6,19 @@ imported. Alembic's autogenerate compares that metadata with the database, so
 table Alembic cannot see. Add each new model below.
 """
 
+from app.database.models.game_moves import GameMove
 from app.database.models.game_sessions import GameSession
 from app.database.models.oauth_states import OAuthState
 from app.database.models.puzzles import Puzzle, PuzzleSolution
 from app.database.models.refresh_tokens import RefreshToken
 from app.database.models.users import User
 
-__all__ = ["GameSession", "OAuthState", "Puzzle", "PuzzleSolution", "RefreshToken", "User"]
+__all__ = [
+    "GameMove",
+    "GameSession",
+    "OAuthState",
+    "Puzzle",
+    "PuzzleSolution",
+    "RefreshToken",
+    "User",
+]

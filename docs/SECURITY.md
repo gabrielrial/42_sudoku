@@ -137,6 +137,11 @@ Notes beyond the numbers:
   (`state`, the PKCE verifier): the engine hides them (`hide_parameters`). Logs
   name a user by `users.id`, never by their 42 id, which would outlive a deleted
   account (`DECISIONS.md` D30).
+- Every digit a player types is recorded for 30 days (`DECISIONS.md` D31). No
+  endpoint serves that record, and it holds no right-or-wrong per digit. But the
+  last rows of a solved game spell out the solution, as its stored grid already
+  does: treat both as carefully as `puzzle_solutions`, and never show one to
+  anyone but the player who typed it.
 - GDPR applies — real people's identities, in the EU. Users can delete their
   account and everything of theirs (`DECISIONS.md` D30). A privacy note and a
   retention period are still needed before Stage 7 (`DECISIONS.md` Q8).
