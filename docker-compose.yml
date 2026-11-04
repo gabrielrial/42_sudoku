@@ -61,8 +61,9 @@ services:
 
   # The daily puzzles, generated ahead of time (DECISIONS.md Q11). Same image,
   # code and settings as api, another command: every hour it makes sure today
-  # and the next days have their puzzles. Its own process, so a 16-second Hard
-  # never slows the API. `make puzzles` runs one round by hand.
+  # and the next days have their puzzles, and deletes the moves past their
+  # retention period (D31). Its own process, so a slow Hard never slows the API.
+  # `make puzzles` runs one round by hand.
   puzzles:
     build: ./backend
     environment: *backend-environment

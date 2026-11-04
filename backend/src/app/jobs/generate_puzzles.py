@@ -5,6 +5,10 @@ Q11), then stops; with ``--every`` it does that again and again, which is how
 the ``puzzles`` compose service runs it. "Today" is the Europe/Berlin day
 (D1), whatever the machine's clock zone.
 
+Each round also deletes the moves past their retention period (D31). The two
+are independent: puzzles that cannot be made must not keep moves past their 30
+days, and a failed deletion says nothing about the puzzles.
+
 A round that fails outright — the database not reachable yet, or its tables
 not migrated yet — is logged and tried again a minute later, not an hour.
 """
@@ -32,8 +36,6 @@ def run_once(days: int) -> Report:
     start = clock.today()
     with SessionFactory() as db:
         report = ensure_puzzles(db, start, days)
-        purged = purge_old_moves(db, clock.now(), get_settings().move_log_days)
-    logger.info("moves past their retention period deleted: %d", purged)
     logger.info(
         "puzzles from %s for %d days: %d created, %d failed",
         start,
@@ -44,9 +46,22 @@ def run_once(days: int) -> Report:
     return report
 
 
+def purge_moves() -> bool:
+    """Delete the moves past their retention period. ``False`` if that failed,
+    which is logged here: it never stops the puzzles."""
+    try:
+        with SessionFactory() as db:
+            purged = purge_old_moves(db, clock.now(), get_settings().move_log_days)
+    except Exception:
+        logger.exception("could not delete the moves past their retention period")
+        return False
+    logger.info("moves past their retention period deleted: %d", purged)
+    return True
+
+
 def main(argv: Sequence[str] | None = None, sleep: Callable[[float], None] = time.sleep) -> int:
-    """Exit status 0 when nothing is missing, 1 when some puzzle could not be
-    made. With ``--every`` it never returns. ``sleep`` exists for the tests."""
+    """Exit status 0 when nothing is missing and the old moves are gone, 1
+    otherwise. With ``--every`` it never returns. ``sleep`` exists for the tests."""
     parser = argparse.ArgumentParser(prog="python -m app.jobs.generate_puzzles")
     parser.add_argument(
         "--days",
@@ -61,9 +76,11 @@ def main(argv: Sequence[str] | None = None, sleep: Callable[[float], None] = tim
     logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
 
     if args.every is None:
-        return 1 if run_once(args.days).failed else 0
+        purged = purge_moves()
+        return 1 if run_once(args.days).failed or not purged else 0
 
     while True:
+        purge_moves()
         try:
             run_once(args.days)
         except Exception:
