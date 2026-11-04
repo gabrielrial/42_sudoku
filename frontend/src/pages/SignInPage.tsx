@@ -1,4 +1,5 @@
 import { LOGIN_URL } from "../api/client";
+import { followLink, PRIVACY_PATH } from "../router";
 
 interface SignInPageProps {
   /** Why the last sign-in failed, if it did. */
@@ -28,6 +29,13 @@ export function SignInPage({ error, notice }: SignInPageProps) {
       )}
       <a className="button" href={LOGIN_URL}>
         Sign in with 42
+      </a>
+      <a
+        className="sign-in__privacy"
+        href={PRIVACY_PATH}
+        onClick={(e) => followLink(e, PRIVACY_PATH)}
+      >
+        What is kept about you
       </a>
     </main>
   );

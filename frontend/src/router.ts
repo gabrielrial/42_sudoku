@@ -1,17 +1,23 @@
-// Two pages and a fallback; the History API is enough (PLAN.md, 6b: routing
+// A few pages and a fallback; the History API is enough (PLAN.md, 6b: routing
 // without a dependency). Vite's dev server answers every client path with
 // index.html, so a reload or a shared link works; the production server must
 // do the same (PLAN.md, Stage 7).
 
 import { type MouseEvent, useMemo, useSyncExternalStore } from "react";
 
-export type Route = { page: "home" } | { page: "game"; gameId: string } | { page: "not_found" };
+export type Route =
+  | { page: "home" }
+  | { page: "game"; gameId: string }
+  | { page: "privacy" }
+  | { page: "not_found" };
 
 export const HOME_PATH = "/";
+export const PRIVACY_PATH = "/privacy";
 export const gamePath = (gameId: string): string => `/games/${encodeURIComponent(gameId)}`;
 
 export function parseRoute(pathname: string): Route {
   if (pathname === HOME_PATH) return { page: "home" };
+  if (pathname === PRIVACY_PATH) return { page: "privacy" };
   const game = /^\/games\/([^/]+)\/?$/.exec(pathname);
   if (game) {
     try {

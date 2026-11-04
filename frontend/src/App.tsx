@@ -4,8 +4,9 @@ import { api } from "./api/client";
 import { SessionBar } from "./components/SessionBar";
 import { GamePage } from "./pages/GamePage";
 import { HomePage } from "./pages/HomePage";
+import { PrivacyPage } from "./pages/PrivacyPage";
 import { SignInPage } from "./pages/SignInPage";
-import { followLink, HOME_PATH, type Route, useRoute } from "./router";
+import { followLink, HOME_PATH, PRIVACY_PATH, type Route, useRoute } from "./router";
 import { deleteAccount, loadSession, type Session, takeLoginError } from "./session/session";
 
 /** Who is here decides what is shown; for a signed-in user, the path does. */
@@ -55,6 +56,9 @@ export function App() {
     return null;
   }, []);
 
+  // Before anything about the session: it has to be readable before signing in.
+  if (route.page === "privacy") return <PrivacyPage />;
+
   switch (session.kind) {
     case "loading":
       return <p className="status">Loading…</p>;
@@ -74,6 +78,11 @@ export function App() {
         <>
           <SessionBar me={session.me} onSignOut={signOut} onDeleteAccount={onDeleteAccount} />
           <Page route={route} />
+          <footer className="site-footer">
+            <a href={PRIVACY_PATH} onClick={(e) => followLink(e, PRIVACY_PATH)}>
+              Privacy
+            </a>
+          </footer>
         </>
       );
   }
@@ -86,6 +95,8 @@ function Page({ route }: { route: Route }) {
     case "game":
       // Another game is another page: nothing of the last one may show here.
       return <GamePage key={route.gameId} gameId={route.gameId} />;
+    case "privacy": // shown by App, whoever is signed in
+      return null;
     case "not_found":
       return (
         <div className="status">
