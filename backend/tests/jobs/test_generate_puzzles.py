@@ -49,6 +49,7 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> Calls:
     recorder = Calls()
     monkeypatch.setattr(job, "ensure_puzzles", recorder)
     monkeypatch.setattr(job, "SessionFactory", _NoSession)
+    monkeypatch.setattr(job, "purge_old_moves", lambda *_: 0)
     return recorder
 
 
@@ -69,6 +70,24 @@ def _sleeper(rounds: int) -> tuple[list[float], object]:
 
 
 # --- one round -----------------------------------------------------------------------------
+
+
+def test_each_round_purges_the_moves_past_their_retention(
+    calls: Calls, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    instant = datetime(2026, 11, 4, 12, 0, tzinfo=clock.UTC)
+    _at(monkeypatch, instant)
+    purges: list[tuple[datetime, int]] = []
+
+    def purge(_db: object, now: datetime, days: int) -> int:
+        purges.append((now, days))
+        return 0
+
+    monkeypatch.setattr(job, "purge_old_moves", purge)
+
+    job.run_once(7)
+
+    assert purges == [(instant, get_settings().move_log_days)]
 
 
 def test_today_is_the_berlin_day(calls: Calls, monkeypatch: pytest.MonkeyPatch) -> None:

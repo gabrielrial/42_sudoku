@@ -17,6 +17,7 @@ from collections.abc import Callable, Sequence
 from app import clock
 from app.config import get_settings
 from app.database.conf.alch_conf import SessionFactory
+from app.services.moves import purge_old_moves
 from app.services.puzzles import Report, ensure_puzzles
 
 logger = logging.getLogger("app.jobs.generate_puzzles")
@@ -31,6 +32,8 @@ def run_once(days: int) -> Report:
     start = clock.today()
     with SessionFactory() as db:
         report = ensure_puzzles(db, start, days)
+        purged = purge_old_moves(db, clock.now(), get_settings().move_log_days)
+    logger.info("moves past their retention period deleted: %d", purged)
     logger.info(
         "puzzles from %s for %d days: %d created, %d failed",
         start,

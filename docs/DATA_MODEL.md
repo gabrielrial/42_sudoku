@@ -90,6 +90,29 @@ for making the mistake structurally hard.
 
 Only the completion check and the generator ever read this table.
 
+## `game_moves`
+
+What a player did, one row per action, to diagnose failures (D31). Written in the
+same transaction as the action; nothing plays from it, and no endpoint serves it.
+
+| Column | Type | Notes |
+|---|---|---|
+| `id` | `BIGSERIAL` | primary key; orders moves with the same timestamp |
+| `game_id` | `UUID NOT NULL` | FK → `game_sessions(id)` `ON DELETE CASCADE` |
+| `user_id` | `INTEGER NOT NULL` | FK → `users(id)` `ON DELETE CASCADE`; repeated here so it can be indexed |
+| `kind` | `TEXT NOT NULL` | `input`, `clear` or `check` |
+| `cell` | `SMALLINT` | 0–80; `input` only |
+| `previous_value` | `SMALLINT` | 0–9, 0 for empty; `input` only |
+| `value` | `SMALLINT` | 0–9, 0 for empty; `input` only |
+| `correct` | `BOOLEAN` | the answer the player was told; `check` only |
+| `played_at` | `TIMESTAMPTZ NOT NULL` | the instant the game was judged at |
+
+- Indexed on `(user_id, played_at)` and `(game_id, played_at)`.
+- `CHECK` ties each kind to its columns: an `input` has its three values, and only
+  a `check` has `correct`.
+- Deleted after `MOVE_LOG_DAYS` (30) by the hourly `puzzles` round. No index on
+  `played_at` alone: a table this small is fine scanned once an hour.
+
 ## `game_sessions`
 
 | Column | Type | Notes |
@@ -191,7 +214,6 @@ pending.
 
 ## Tables deliberately absent
 
-- **`game_moves`** — no move log in the MVP (D14).
 - **`app_sessions`** — requests are authenticated by a signed access JWT
   (D15), verified by its signature plus the user lookup the endpoints need
   anyway. What the server does keep is `refresh_tokens`, one row per refresh

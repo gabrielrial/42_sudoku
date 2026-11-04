@@ -12,6 +12,7 @@ from sqlalchemy.orm.exc import StaleDataError
 from app.api.cookies import ACCESS_COOKIE, ACCESS_PATH, REFRESH_COOKIE, REFRESH_PATH
 from app.api.dependencies import get_provider
 from app.api.routers import auth as auth_router
+from app.database.models.game_moves import GameMove
 from app.database.models.game_sessions import GameSession
 from app.database.models.puzzles import Puzzle, PuzzleSolution
 from app.database.models.refresh_tokens import RefreshToken
@@ -75,14 +76,17 @@ def test_the_user_their_games_and_their_sessions_are_gone(
 ) -> None:
     user_id = user.id
     assert start(signed_in, "easy").status_code == 201
-    assert start(signed_in, "hard").status_code == 201
+    game_id = start(signed_in, "hard").json()["game_id"]
+    assert signed_in.delete(f"/api/games/{game_id}/cells").status_code == 204
     assert _count(db, RefreshToken, user_id=user_id) == 1
+    assert _count(db, GameMove, user_id=user_id) == 1
 
     response = signed_in.delete(ME)
 
     assert response.status_code == 204
     assert _count(db, User, id=user_id) == 0
     assert _count(db, GameSession, user_id=user_id) == 0
+    assert _count(db, GameMove, user_id=user_id) == 0
     assert _count(db, RefreshToken, user_id=user_id) == 0
 
 

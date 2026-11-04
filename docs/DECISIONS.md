@@ -107,6 +107,8 @@ endpoint is rate-limited per D5, which is what stops repeated submission from
 becoming a slow brute-force channel.
 
 ### D14 — Game state is a snapshot, not a move log
+*The move log half replaced by D31, 2026-11-04. The grid is still a snapshot.*
+
 One column on `GameSession` holding the current grid. No `GameMove` table in the
 MVP. A move log can be added later if statistics or anti-cheat actually need
 one; building it now is the premature abstraction the project rules warn about.
@@ -431,7 +433,8 @@ hardest technique is unchanged by the refill. Generator version `"4"`.
 Decided 2026-11-02, by the developer. The deletion path Q8 asks for.
 
 `DELETE /api/users/me`, behind one confirmation, removes the `users` row. The
-foreign keys already cascade to `game_sessions` and `refresh_tokens`, at once, in
+foreign keys already cascade to `game_sessions`, `game_moves` (D31) and
+`refresh_tokens`, at once, in
 that one request. Nothing stays in the database, not even a hash of the 42 id: the
 puzzles stay, being everyone's and holding nothing of theirs.
 
@@ -447,6 +450,31 @@ were a hash of the 42 id kept for some days, which is keeping personal data, or 
 deletion delayed to midnight. Rejected: whoever does this gives up every game they
 have played, so they never hold more than a day of history. This is the one
 exception to D3's "no delete" (`GAME_RULES.md` §2, §5).
+
+### D31 — Every move is recorded, to diagnose failures
+Decided 2026-11-04, by the developer. Replaces D14's "no `GameMove` table", which
+waited for a concrete need: this is it. When something goes wrong, the current
+grid says where a player ended up, never how they got there.
+
+`game_moves` holds one row per accepted input, clear and full-grid check, written
+in the same transaction as the action, so it cannot disagree with the grid.
+Heartbeats are left out, one a minute being noise. Refused inputs are left out,
+and so is whatever never reached the server. Nothing plays from this table: the
+grid stays the snapshot of D14.
+
+A table rather than log lines. Lines would be gone whenever the container is
+recreated, or rotated away without warning, could not be deleted per user (D30),
+and could not be searched by user. An index on `(user_id, played_at)` answers
+"what did this user do".
+
+Kept **30 days** (`MOVE_LOG_DAYS`): it is there to look into failures, and the
+GDPR asks that data be kept no longer than its purpose needs. The hourly
+`puzzles` round deletes what is older. It cascades with the game and the user, so
+deleting an account still removes everything of theirs from the database (D30).
+
+Nothing reads the solution to write it, and no endpoint serves it: a history of
+moves, shown back, would be no oracle, but there is no need to find out. The
+privacy note must say that each digit typed is recorded (Q8).
 
 ### Q1 — The activity rule behind D6 (answered)
 

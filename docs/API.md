@@ -397,4 +397,4 @@ current and longest streak; history.
 | Anything returning a solution | The one hard rule in `SECURITY.md` |
 | Any per-cell "is this right?" check | The oracle (A4) |
 | `DELETE /api/games/{id}` | Games cannot be restarted or abandoned (D3) |
-| A move history endpoint | No move log (D14) |
+| A move history endpoint | Moves are recorded to diagnose failures, not to be served (D31) |

@@ -284,6 +284,7 @@ Done: `ROADMAP.md` Phase 6 exit, by hand with the fake provider and with 42.
 Before it, on `feature/delete-account`: a user can delete their account and
 everything of theirs (D30), the deletion path of Q8. **Done 2026-11-02.** Q8's
 privacy note and retention period are still open, and due before this stage.
+On `feature/move-log`: every move recorded for 30 days (D31).
 
 Deployment compose: uvicorn without `--reload`, migrations on start, built
 front end served per P3 — answering every client path (`/games/…`) with
