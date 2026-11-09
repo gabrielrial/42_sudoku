@@ -10,8 +10,9 @@ past midnight — with four checks on every answer:
   ``solution``, a ``hint``, a count of right cells — fails here by its mere
   presence, whatever it would have carried;
 - every grid in it is one the player already has: ``givens`` is the puzzle's,
-  and ``state`` is a grid the server held for them at that point. An allowed
-  field carrying more — a ``state`` with a solved cell filled in — fails here.
+  ``state`` is a grid the server held for them at that point, and ``notes``
+  holds only notes the player wrote. An allowed field carrying more — a
+  ``state`` with a solved cell filled in, a note nobody typed — fails here.
 
 Once the player has solved the puzzle, their grid *is* the solution, and
 showing it back to them leaks nothing; that state is deliberately not walked.
@@ -49,6 +50,10 @@ API_KEYS = {
 
 EMPTY = GIVENS.index("0")
 GIVEN = next(i for i, ch in enumerate(GIVENS) if ch != "0")
+OTHER = next(i for i, ch in enumerate(GIVENS) if ch == "0" and i != EMPTY)
+NOTED = [2, 3, 7]
+"""Notes written on ``OTHER``. No 1 among them: the 1 typed on ``EMPTY`` takes
+nothing from them, so what the server holds is exactly what was written."""
 
 
 def _items(value: Any) -> Iterator[tuple[str, Any]]:
@@ -85,6 +90,13 @@ def test_no_answer_before_the_solve_leaks_anything(
     left_overnight = call("start another", start(db_client, "easy"), 201).json()["game_id"]
     # Its own input budget: the hard game's is spent below.
     call("clear", db_client.delete(f"{GAMES}/{left_overnight}/cells"), 204)
+    easy = f"{GAMES}/{left_overnight}"
+    call("notes", db_client.put(f"{easy}/notes/{OTHER}", json={"notes": NOTED}), 204)
+    call("notes on a given", db_client.put(f"{easy}/notes/{GIVEN}", json={"notes": [1]}), 409)
+    call("notes, bad digits", db_client.put(f"{easy}/notes/{OTHER}", json={"notes": [0]}), 422)
+    call("input beside the notes", db_client.put(f"{easy}/cells/{EMPTY}", json={"value": 1}), 204)
+    call("notes on a filled cell", db_client.put(f"{easy}/notes/{EMPTY}", json={"notes": [2]}), 409)
+    call("resume, with notes", db_client.get(easy), 200)
     game = f"{GAMES}/{game_id}"
     call("start again", start(db_client, "hard"), 409)
     call("start, unknown difficulty", db_client.post(GAMES, json={"difficulty": "x"}), 422)
@@ -97,6 +109,7 @@ def test_no_answer_before_the_solve_leaks_anything(
         call(f"input {digit}", db_client.put(f"{game}/cells/{EMPTY}", json={"value": digit}), 204)
     call("input on a given", db_client.put(f"{game}/cells/{GIVEN}", json={"value": 1}), 409)
     call("input over the limit", db_client.put(f"{game}/cells/{EMPTY}", json={"value": 2}), 429)
+    call("notes over the limit", db_client.put(f"{game}/notes/{OTHER}", json={"notes": [1]}), 429)
     call("input, bad value", db_client.put(f"{game}/cells/{EMPTY}", json={"value": 0}), 422)
     call("heartbeat", db_client.post(f"{game}/heartbeat"), 204)
     call("complete, incomplete grid", db_client.post(f"{game}/complete"), 409)
@@ -122,6 +135,7 @@ def test_no_answer_before_the_solve_leaks_anything(
     call("someone else: input", db_client.put(f"{game}/cells/{EMPTY}", json={"value": 1}), 404)
     call("someone else: heartbeat", db_client.post(f"{game}/heartbeat"), 404)
     call("someone else: clear", db_client.delete(f"{game}/cells"), 404)
+    call("someone else: notes", db_client.put(f"{game}/notes/{OTHER}", json={"notes": [1]}), 404)
     call("someone else: complete", db_client.post(f"{game}/complete"), 404)
     call("someone else: today", db_client.get(TODAY), 200)
 
@@ -132,6 +146,7 @@ def test_no_answer_before_the_solve_leaks_anything(
     call("closed: input", db_client.put(f"{closed}/cells/{EMPTY}", json={"value": 1}), 410)
     call("closed: heartbeat", db_client.post(f"{closed}/heartbeat"), 410)
     call("closed: clear", db_client.delete(f"{closed}/cells"), 410)
+    call("closed: notes", db_client.put(f"{closed}/notes/{OTHER}", json={"notes": [1]}), 410)
     call("closed: complete", db_client.post(f"{closed}/complete"), 410)
     call("today, the next day", db_client.get(TODAY), 200)
 
@@ -145,7 +160,8 @@ def test_no_answer_before_the_solve_leaks_anything(
         if r.content and set(_keys(r.json())) - API_KEYS
     }
     assert not strange, f"keys the API does not define: {strange}"
-    held = {GIVENS, "".join(wrong)}  # every grid the player's games held when looked at
+    beside = GIVENS[:EMPTY] + "1" + GIVENS[EMPTY + 1 :]  # the easy game, after its input
+    held = {GIVENS, "".join(wrong), beside}  # every grid the player's games held when looked at
     grids = {
         label: [(key, value) for key, value in _items(r.json()) if key in ("givens", "state")]
         for label, r, _ in walk
@@ -157,10 +173,21 @@ def test_no_answer_before_the_solve_leaks_anything(
         if (bad := [k for k, v in pairs if v not in ({GIVENS} if k == "givens" else held)])
     }
     assert not beyond, f"grids the player does not have: {beyond}"
+    typed = {(), tuple(NOTED)}  # every note the player wrote, and none at all
+    noted = {
+        label: bad
+        for label, r, _ in walk
+        if r.content
+        for key, value in _items(r.json())
+        if key == "notes" and (bad := [n for n in value if tuple(n) not in typed])
+    }
+    assert not noted, f"notes the player never wrote: {noted}"
     by_label = {label: r for label, r, _ in walk}
     assert by_label["complete, wrong grid"].json() == {"correct": False, "submission_count": 1}
     # The parts of the walk that carry a grid, or a game past midnight, really did.
     assert by_label["start"].json()["state"] == GIVENS
+    # The notes part of the walk ran: the notes, and the digit beside them, held.
+    assert by_label["resume, with notes"].json()["notes"][OTHER] == NOTED
     assert by_label["resume after a wrong submission"].json()["state"] == "".join(wrong)
     assert [g["game_id"] for g in by_label["today, a game continuing"].json()["continuing"]] == [
         game_id

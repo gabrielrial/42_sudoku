@@ -28,9 +28,31 @@ pytestmark = [pytest.mark.db, pytest.mark.usefixtures("fixed_clock", "week")]
 
 EMPTY = [i for i, ch in enumerate(GIVENS) if ch == "0"]
 A_GIVEN = GIVENS.index(next(ch for ch in GIVENS if ch != "0"))
-CELL = EMPTY[0]
-EMPTY_PEER = next(c for c in EMPTY if c in PEERS[CELL])
+
+
+def _row(c: int) -> int:
+    return c // 9
+
+
+def _col(c: int) -> int:
+    return c % 9
+
+
+def _box(c: int) -> int:
+    return (c // 27) * 3 + (c % 9) // 3
+
+
+# A cell with an empty peer in each unit that shares *only* that unit with it:
+# otherwise a test of the row could pass on the box's pruning, and the reverse.
+CELL = 1
+ONLY_ROW = next(c for c in EMPTY if _row(c) == _row(CELL) and _box(c) != _box(CELL))
+ONLY_COLUMN = next(c for c in EMPTY if _col(c) == _col(CELL) and _box(c) != _box(CELL))
+ONLY_BOX = next(
+    c for c in EMPTY if _box(c) == _box(CELL) and _row(c) != _row(CELL) and _col(c) != _col(CELL)
+)
+EMPTY_PEER = ONLY_ROW
 NOT_A_PEER = next(c for c in EMPTY if c != CELL and c not in PEERS[CELL])
+assert CELL in EMPTY
 
 
 @pytest.fixture
@@ -127,17 +149,10 @@ def test_placing_a_digit_clears_its_cell_and_its_peers_of_that_digit(
     assert notes[NOT_A_PEER] == [4, 6]  # not in its row, column or box
 
 
-@pytest.mark.parametrize("unit", ["row", "column", "box"])
+@pytest.mark.parametrize("peer", [ONLY_ROW, ONLY_COLUMN, ONLY_BOX], ids=["row", "column", "box"])
 def test_every_unit_of_the_cell_loses_the_digit(
-    signed_in: TestClient, game_id: str, unit: str
+    signed_in: TestClient, game_id: str, peer: int
 ) -> None:
-    row, col, box = CELL // 9, CELL % 9, (CELL // 27) * 3 + (CELL % 9) // 3
-    same: dict[str, Callable[[int], bool]] = {
-        "row": lambda c: c // 9 == row and c != CELL,
-        "column": lambda c: c % 9 == col and c != CELL,
-        "box": lambda c: (c // 27) * 3 + (c % 9) // 3 == box and c != CELL,
-    }
-    peer = next(c for c in EMPTY if same[unit](c))
     _notes(signed_in, game_id, peer, [3])
 
     _digit(signed_in, game_id, CELL, 3)
@@ -237,6 +252,24 @@ def test_a_closed_game_takes_no_notes(
     assert _notes(signed_in, game_id, CELL, [1]).status_code == 410
 
 
+def test_nobody_else_can_spend_my_inputs_with_notes(
+    db: Session, db_client: TestClient, user: User
+) -> None:
+    # As for digits: the limit is taken after ownership, so requests on a game
+    # that is not yours stop at 404 and cost its owner nothing.
+    sign_in(db_client, db, user)
+    app = db_client.app
+    assert isinstance(app, FastAPI)
+    app.state.input_limiter = RateLimiter(capacity=10, refill_per_second=1, clock=lambda: 0.0)
+    game_id = start(db_client).json()["game_id"]
+    sign_in(db_client, db, other_user(db))
+    for _ in range(30):
+        assert _notes(db_client, game_id, CELL, [1]).status_code == 404
+
+    sign_in(db_client, db, user)
+    assert _notes(db_client, game_id, CELL, [1]).status_code == 204
+
+
 def test_notes_spend_the_same_budget_as_digits(signed_in: TestClient, game_id: str) -> None:
     app = signed_in.app
     assert isinstance(app, FastAPI)
@@ -284,6 +317,9 @@ def test_replaying_the_moves_gives_the_stored_notes(
     _notes(signed_in, game_id, CELL, [])  # refused: the cell is filled
     _digit(signed_in, game_id, CELL, None)
     _notes(signed_in, game_id, CELL, [2, 7])
+    signed_in.delete(f"{GAMES}/{game_id}/cells")  # a clear empties every note
+    _notes(signed_in, game_id, NOT_A_PEER, [5, 6])
+    _digit(signed_in, game_id, ONLY_BOX, 5)
 
     db.expire_all()
     replayed = [0] * 81
@@ -295,6 +331,8 @@ def test_replaying_the_moves_gives_the_stored_notes(
             replayed[move.cell] = move.notes or 0
         elif move.kind == "input" and move.value and move.cell is not None:
             replayed = place_digit(replayed, move.cell, move.value)
+        elif move.kind == "clear":
+            replayed = [0] * 81
 
     assert replayed == _stored(db, game_id).notes
 
