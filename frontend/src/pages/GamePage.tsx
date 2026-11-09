@@ -3,7 +3,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, type GameView } from "../api/client";
 import { difficultyLabel, formatDuration } from "../format";
 import { type CheckOutcome, checkGrid, elapsedSeconds } from "../game/check";
-import { type Grid, parseGrid, setCell } from "../game/grid";
+import {
+  clearNotes,
+  digitsOf,
+  type Grid,
+  NO_NOTES,
+  type Notes,
+  notesFromApi,
+  parseGrid,
+  placeDigit,
+  setCell,
+  toggleNote,
+} from "../game/grid";
 import { startHeartbeat } from "../game/heartbeat";
 import { createInputQueue, type QueueStatus, type StopReason } from "../game/inputQueue";
 import { createQueueRegistry } from "../game/queues";
@@ -16,6 +27,7 @@ const queues = createQueueRegistry((gameId) =>
     (cell, value) => api.putCell(gameId, cell, value),
     undefined,
     () => api.clearCells(gameId),
+    (cell, digits) => api.putNotes(gameId, cell, digits),
   ),
 );
 
@@ -125,6 +137,7 @@ function LiveGame({
 }) {
   const givens = useMemo(() => parseGrid(game.givens), [game.givens]);
   const [values, setValues] = useState<Grid>(() => parseGrid(game.state));
+  const [notes, setNotes] = useState<Notes>(() => notesFromApi(game.notes));
   const queue = useMemo(() => queues.queueFor(game.game_id), [game.game_id]);
   const [saving, setSaving] = useState<QueueStatus>(() => queue.status);
   const [stopped, setStopped] = useState<StopReason | null>(null);
@@ -138,7 +151,9 @@ function LiveGame({
   const playing = solved === null && stopped === null;
   const clock = useClock(game.started_at, playing);
   const full = values.every((value) => value !== 0);
-  const anyFilled = values.some((value, cell) => value !== 0 && givens[cell] === 0);
+  const anyFilled =
+    values.some((value, cell) => value !== 0 && givens[cell] === 0) ||
+    notes.some((mask) => mask !== 0);
   const [confirmingClear, setConfirmingClear] = useState(false);
 
   const onStopped = useCallback(
@@ -170,9 +185,29 @@ function LiveGame({
       setChecked(null); // an answer about the grid before this input is stale
       onInput();
       setValues((current) => setCell(current, givens, cell, value));
+      if (value !== 0) setNotes((current) => placeDigit(current, cell, value));
       queue.write(cell, value === 0 ? null : value);
     },
     [givens, queue, onInput],
+  );
+
+  const toggle = useCallback(
+    (cell: number, digit: number) => {
+      onInput();
+      const next = toggleNote(notes, cell, digit);
+      setNotes(next);
+      queue.writeNotes(cell, digitsOf(next[cell]!));
+    },
+    [notes, queue, onInput],
+  );
+
+  const eraseNotes = useCallback(
+    (cell: number) => {
+      onInput();
+      setNotes((current) => clearNotes(current, cell));
+      queue.writeNotes(cell, []);
+    },
+    [queue, onInput],
   );
 
   // Clearing takes a second tap, like starting (D25): it cannot be undone,
@@ -182,6 +217,7 @@ function LiveGame({
     setChecked(null);
     onInput();
     setValues(givens);
+    setNotes(NO_NOTES);
     queue.clear();
   }
 
@@ -210,12 +246,15 @@ function LiveGame({
       title={`${difficultyLabel(game.difficulty)} · ${game.date}`}
       givens={givens}
       values={values}
+      notes={notes}
       // Not while checking: an input then would make the answer about an
       // older grid than the one on screen.
       readOnly={!playing || checking}
       clock={clock}
       note={note}
       onWrite={write}
+      onNote={toggle}
+      onEraseNotes={eraseNotes}
     >
       {notice !== null && (
         <p className="check__answer check__answer--problem" role="alert">

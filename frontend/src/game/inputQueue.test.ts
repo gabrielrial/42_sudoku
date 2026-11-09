@@ -71,20 +71,24 @@ describe("the input queue", () => {
     expect(server.maxInFlight).toBe(1);
   });
 
-  it("sends a cell written again before its turn once, with its last value", async () => {
+  it("sends every digit of a cell written again before its turn, in order", async () => {
+    // Each digit took itself out of its peers' notes on screen (D33): the
+    // server must place each one too, or it would keep notes the screen lost.
     const server = fakePut();
     server.hold();
     const queue = createInputQueue(server.put);
 
     queue.write(1, 1); // in flight
-    queue.write(2, 2); // waiting...
-    queue.write(2, 3); // ...and replaced before its turn
+    queue.write(2, 2);
+    queue.write(2, 3);
     queue.write(2, 4);
     server.releaseAll();
 
     await queue.idle();
     expect(server.sent).toEqual([
       [1, 1],
+      [2, 2],
+      [2, 3],
       [2, 4],
     ]);
   });
@@ -126,7 +130,7 @@ describe("the input queue", () => {
     expect(statuses.at(-1)).toBe("saved");
   });
 
-  it("does not resend an old value after a 429 if the cell was written again", async () => {
+  it("resends a digit refused with a 429 before the newer value of its cell", async () => {
     const server = fakePut([tooMany(1)]);
     server.hold();
     const queue = createInputQueue(server.put, fakeSleep().sleep);
@@ -138,22 +142,24 @@ describe("the input queue", () => {
     await queue.idle();
     expect(server.sent).toEqual([
       [7, 9],
-      [7, 2],
+      [7, 9],
+      [7, 2], // the last value lands last
     ]);
   });
 
-  it("lets a newer value of a failed cell wait its turn, behind what was typed before it", async () => {
+  it("keeps the order typed through a lost connection", async () => {
     const server = fakePut([new TypeError("Failed to fetch")]);
     server.hold();
     const queue = createInputQueue(server.put, fakeSleep().sleep);
 
     queue.write(1, 1); // in flight, will be lost
     queue.write(2, 2);
-    queue.write(1, 3); // the newer value of cell 1, queued after cell 2
+    queue.write(1, 3);
     server.releaseAll();
 
     await queue.idle();
     expect(server.sent).toEqual([
+      [1, 1],
       [1, 1],
       [2, 2],
       [1, 3],
@@ -278,6 +284,7 @@ function fakeLine(answers: unknown[] = []) {
     log,
     put: (cell: number, value: number | null) => take(`${cell}=${value}`),
     clearAll: () => take("clear"),
+    putNotes: (cell: number, digits: readonly number[]) => take(`${cell}:${digits.join("")}`),
     hold: () => {
       holding = true;
     },
@@ -396,6 +403,94 @@ describe("clearing the grid", () => {
 
     expect(queue.stopped).toBe("closed");
     expect(line.log).toEqual(["clear"]);
+  });
+});
+
+describe("notes", () => {
+  const queueOn = (line: ReturnType<typeof fakeLine>) =>
+    createInputQueue(line.put, fakeSleep().sleep, line.clearAll, line.putNotes);
+
+  it("are sent in their place among the digits", async () => {
+    const line = fakeLine();
+    const queue = queueOn(line);
+
+    queue.writeNotes(3, [1, 2]);
+    queue.write(4, 5);
+    queue.writeNotes(6, [9]);
+
+    await queue.idle();
+    expect(line.log).toEqual(["3:12", "4=5", "6:9"]);
+  });
+
+  it("tapped in a row on one cell, are sent once with the last set", async () => {
+    const line = fakeLine();
+    line.hold();
+    const queue = queueOn(line);
+
+    queue.write(0, 1); // in flight
+    queue.writeNotes(3, [1]);
+    queue.writeNotes(3, [1, 4]);
+    queue.writeNotes(3, [4]);
+    await line.releaseAll();
+
+    await queue.idle();
+    expect(line.log).toEqual(["0=1", "3:4"]);
+  });
+
+  it("are never merged across a digit: it may have taken a note away", async () => {
+    const line = fakeLine();
+    line.hold();
+    const queue = queueOn(line);
+
+    queue.write(0, 1); // in flight
+    queue.writeNotes(3, [5]);
+    queue.write(4, 5); // takes 5 out of cell 3's notes, if they are peers
+    queue.writeNotes(3, [5, 6]);
+    await line.releaseAll();
+
+    await queue.idle();
+    expect(line.log).toEqual(["0=1", "3:5", "4=5", "3:56"]);
+  });
+
+  it("of another cell are not merged", async () => {
+    const line = fakeLine();
+    line.hold();
+    const queue = queueOn(line);
+
+    queue.write(0, 1); // in flight
+    queue.writeNotes(3, [1]);
+    queue.writeNotes(4, [2]);
+    queue.writeNotes(3, [1, 2]);
+    await line.releaseAll();
+
+    await queue.idle();
+    expect(line.log).toEqual(["0=1", "3:1", "4:2", "3:12"]);
+  });
+
+  it("waiting are dropped by a clear, which empties them too", async () => {
+    const line = fakeLine();
+    line.hold();
+    const queue = queueOn(line);
+
+    queue.write(0, 1); // in flight
+    queue.writeNotes(3, [1]);
+    queue.clear();
+    queue.writeNotes(5, [2]);
+    await line.releaseAll();
+
+    await queue.idle();
+    expect(line.log).toEqual(["0=1", "clear", "5:2"]);
+  });
+
+  it("are retried after a 429, before what came after them", async () => {
+    const line = fakeLine([tooMany(1)]);
+    const queue = queueOn(line);
+
+    queue.writeNotes(3, [1]);
+    queue.write(4, 5);
+
+    await queue.idle();
+    expect(line.log).toEqual(["3:1", "3:1", "4=5"]);
   });
 });
 
