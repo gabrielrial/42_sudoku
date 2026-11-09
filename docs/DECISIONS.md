@@ -482,28 +482,6 @@ when its id is assigned, while `played_at` follows the clock, which can step bac
 Deleting an account locks the user's games before the user, the order a move takes
 them in, or the two would deadlock.
 
-### D33 — Notes, kept on the server
-Decided 2026-11-09, by the developer: Q5's pencil marks. Without them the tier-3
-techniques Hard requires, triples and X-Wings, are hard to see at all.
-
-- **On the server**, as part of the game: they survive a reload and another
-  device, as everything else in a game does (`GAME_RULES.md` §3). Each change of a
-  cell's notes is a request, which costs rate limit and, on ngrok's free plan
-  (D32), part of its monthly quota.
-- **Recorded** in `game_moves` like every move (D31).
-- **Placing a digit removes that digit from the notes of its row, column and box**,
-  on the server, as many Sudoku apps do. It reveals nothing: it applies the rules,
-  not the solution.
-- `PUT /api/games/{id}/notes/{index}` replaces one cell's notes. `GET` returns them
-  as 81 lists of digits. Stored as 81 bitmasks (`DATA_MODEL.md`).
-
-**What it changes in the client's input queue.** It used to send a digit rewritten
-before its turn once, with its last value. No longer: each digit takes notes away
-from its peers on screen at once, and the server must place each one to end up with
-the same notes. Every digit is now sent, in order. Notes for one cell tapped in a
-row, with nothing in between, are still merged, since a note affects no other cell.
-The cost is a few more requests when a cell is rewritten quickly.
-
 ### D32 — The first deployment goes through ngrok, and FastAPI serves the front end
 Decided 2026-11-04, by the developer. Answers `PLAN.md` P2 and P3, and turns
 Stage 7 from a LAN into a small test on the internet.
@@ -535,6 +513,28 @@ Accepted, knowing it:
   is up only while the machine is on.
 
 Review all of this before opening the site beyond a small test.
+
+### D33 — Notes, kept on the server
+Decided 2026-11-09, by the developer: Q5's pencil marks. Without them the tier-3
+techniques Hard requires, triples and X-Wings, are hard to see at all.
+
+- **On the server**, as part of the game: they survive a reload and another
+  device, as everything else in a game does (`GAME_RULES.md` §3). Each change of a
+  cell's notes is a request, which costs rate limit and, on ngrok's free plan
+  (D32), part of its monthly quota.
+- **Recorded** in `game_moves` like every move (D31).
+- **Placing a digit removes that digit from the notes of its row, column and box**,
+  on the server, as many Sudoku apps do. It reveals nothing: it applies the rules,
+  not the solution.
+- `PUT /api/games/{id}/notes/{index}` replaces one cell's notes. `GET` returns them
+  as 81 lists of digits. Stored as 81 bitmasks (`DATA_MODEL.md`).
+
+**What it changes in the client's input queue.** It used to send a digit rewritten
+before its turn once, with its last value. No longer: each digit takes notes away
+from its peers on screen at once, and the server must place each one to end up with
+the same notes. Every digit is now sent, in order. Notes for one cell tapped in a
+row, with nothing in between, are still merged, since a note affects no other cell.
+The cost is a few more requests when a cell is rewritten quickly.
 
 ### Q8 — GDPR and privacy (answered)
 Answered 2026-11-04, by the developer. Real identities of real EU students. Not

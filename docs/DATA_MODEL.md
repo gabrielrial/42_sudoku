@@ -113,7 +113,8 @@ same transaction as the action; nothing plays from it, and no endpoint serves it
 - `CHECK` ties each kind to its columns: an `input` has its three values, a `notes`
   its cell and both masks, and only a `check` has `correct`.
 - The notes a placed digit takes from its peers (D33) are not rows of their own:
-  replaying the `input` redoes them.
+  replaying the `input` redoes them. A `clear` empties every note: replay sets all
+  81 back to 0.
 - Deleted after `MOVE_LOG_DAYS` (30) by the hourly `puzzles` round. No index on
   `played_at` alone: scanned once an hour, it took under a third of a second at a
   million rows.

@@ -258,6 +258,9 @@ Validates **legality only** (`GAME_RULES.md` §3): the game is the caller's and
 open, the cell is not a given, the value is 1–9 or null. It never reveals
 whether the value is correct, and a wrong digit is not recorded anywhere.
 
+A digit also clears the notes of its cell and removes itself from the notes of
+its row, column and box (D33); `null` brings none back.
+
 Also updates `last_activity_at` and accumulates `active_seconds`, as the
 heartbeat below does. A right and a wrong digit get byte-for-byte the same
 answer, and the request never reads `puzzle_solutions` at all.
@@ -286,8 +289,9 @@ The player's notes in one cell (D33). `index` is `0`–`80`.
     → { "notes": [1, 4, 7] }   // every digit noted there; [] removes them all
     ← 204
 
-Replaces the cell's notes. An input in every respect: the same legality, the
-same row lock, the same rate-limit bucket as a digit, and activity like one.
+Replaces the cell's notes. An input in every respect: legal where a digit is,
+and only in an empty cell; the same row lock and the same rate-limit bucket as
+a digit, and activity like one.
 Never judged, and the request never reads `puzzle_solutions`.
 
 `notes` must be present: a list of at most nine distinct integers 1–9. Nothing
@@ -307,8 +311,8 @@ cell and that digit from the notes of its row, column and box (`GAME_RULES.md`
 
 ### `DELETE /api/games/{id}/cells`
 
-Clears the grid: every cell the player filled is emptied, and `state` is the
-givens again (D27). No body.
+Clears the grid: every cell the player filled is emptied, every note is removed
+(D33), and `state` is the givens again (D27). No body.
 
     ← 204
 
