@@ -61,7 +61,8 @@ def test_a_new_game_starts_from_the_database_defaults(
 
     # Read back on insert (eager_defaults), not left as None on the object.
     assert isinstance(game.id, uuid.UUID)
-    assert (game.state_version, game.active_seconds, game.submission_count) == (1, 0, 0)
+    assert (game.state_version, game.active_seconds, game.submission_count) == (2, 0, 0)
+    assert game.notes == [0] * 81
     assert game.started_at is not None and game.last_activity_at is not None
     assert game.completed_at is None and game.closed_at is None
 

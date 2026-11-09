@@ -152,6 +152,7 @@ def test_playing_never_reads_the_solution(
 
 WRITES: dict[str, Callable[[TestClient, str], Response]] = {
     "input": lambda c, g: _put(c, g, EMPTY, 4),
+    "notes": lambda c, g: c.put(f"{GAMES}/{g}/notes/{EMPTY}", json={"notes": [1]}),
     "clear": lambda c, g: c.delete(f"{GAMES}/{g}/cells"),
     "heartbeat": _beat,
     "complete": lambda c, g: c.post(f"{GAMES}/{g}/complete"),
@@ -169,9 +170,10 @@ def test_every_write_locks_its_game_row(
     # Two requests on one game take turns. Without the lock, two correct
     # submissions at once would both count, and the second would move
     # completed_at; two inputs could overwrite each other's cell.
-    game = _stored(db, game_id)
-    game.state = SOLUTION  # so that complete gets as far as checking
-    db.commit()
+    if send is WRITES["complete"]:
+        game = _stored(db, game_id)
+        game.state = SOLUTION  # so that complete gets as far as checking
+        db.commit()
     statements.clear()
 
     assert send(signed_in, game_id).status_code in (200, 204)

@@ -40,7 +40,7 @@ API_KEYS = {
     "date", "puzzles", "continuing", "difficulty", "status", "game_id",
     "official_seconds", "active_seconds",
     # POST /api/games, GET /api/games/{id}
-    "givens", "state", "started_at", "completed_at", "submission_count",
+    "givens", "state", "notes", "started_at", "completed_at", "submission_count",
     # POST /api/games/{id}/complete
     "correct",
     # the error envelope

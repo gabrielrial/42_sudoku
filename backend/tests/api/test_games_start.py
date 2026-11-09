@@ -257,7 +257,16 @@ def test_starting_returns_todays_grid_and_starts_the_clock(
     assert body["date"] == "2026-10-24"
     assert body["givens"] == body["state"] == GIVENS
     assert datetime.fromisoformat(body["started_at"]) == NOW
-    assert set(body) == {"game_id", "difficulty", "date", "givens", "state", "started_at"}
+    assert set(body) == {
+        "game_id",
+        "difficulty",
+        "date",
+        "givens",
+        "state",
+        "notes",
+        "started_at",
+    }
+    assert body["notes"] == [[]] * 81
 
 
 def test_the_game_is_bound_to_todays_puzzle(db: Session, signed_in: TestClient, week: dict) -> None:
