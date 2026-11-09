@@ -4,6 +4,7 @@ import {
   clearNotes,
   digitsOf,
   NO_NOTES,
+  notesAfterWrite,
   notesFromApi,
   PEERS,
   placeDigit,
@@ -51,6 +52,20 @@ describe("peers", () => {
 
   it("are the same for every cell of the board", () => {
     PEERS.forEach((peers) => expect(peers).toHaveLength(20));
+  });
+});
+
+describe("writing a cell", () => {
+  it("prunes with a digit, as the server does", () => {
+    const notes = toggleNote(NO_NOTES, 1, 4);
+
+    expect(notesAfterWrite(notes, 0, 4)[1]).toBe(0);
+  });
+
+  it("brings nothing back, and takes nothing, when the cell is emptied", () => {
+    const notes = toggleNote(NO_NOTES, 1, 4);
+
+    expect(notesAfterWrite(notes, 0, 0)).toBe(notes);
   });
 });
 

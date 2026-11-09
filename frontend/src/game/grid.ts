@@ -86,6 +86,12 @@ export function placeDigit(notes: Notes, cell: number, value: number): Notes {
   return next;
 }
 
+/** The notes once `value` is written in `cell`: a digit takes notes away
+ * (`placeDigit`); emptying the cell (0) brings none back. As the server does. */
+export function notesAfterWrite(notes: Notes, cell: number, value: number): Notes {
+  return value === 0 ? notes : placeDigit(notes, cell, value);
+}
+
 /** The cell reached by moving from `cell` by the given rows and columns,
  * stopping at the edge of the board. */
 export function moveFrom(cell: number, rows: number, cols: number): number {

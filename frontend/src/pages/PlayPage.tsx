@@ -3,13 +3,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { Board } from "../components/Board";
 import { NumberPad } from "../components/NumberPad";
 import { type Grid, moveFrom, type Notes } from "../game/grid";
-
-const ARROWS: Record<string, [number, number]> = {
-  ArrowUp: [-1, 0],
-  ArrowDown: [1, 0],
-  ArrowLeft: [0, -1],
-  ArrowRight: [0, 1],
-};
+import { digitEffect, eraseEffect, keyAction } from "../game/play";
 
 interface PlayPageProps {
   title: string;
@@ -58,40 +52,38 @@ export function PlayPage({
     [onWrite, selected, selectedIsEditable, values],
   );
 
-  // A digit key: a note in notes mode, on an empty cell; otherwise the digit.
   const digit = useCallback(
     (value: number) => {
       if (!selectedIsEditable) return;
-      if (noting) {
-        if (values[selected] === 0) onNote(selected, value);
-      } else {
-        write(value);
-      }
+      const effect = digitEffect(noting, values[selected]!, value);
+      if (effect?.kind === "note") onNote(selected, effect.digit);
+      else if (effect?.kind === "write") write(effect.value);
     },
     [noting, onNote, selected, selectedIsEditable, values, write],
   );
 
-  // Erase takes away whatever the cell shows: its digit, or else its notes.
   const erase = useCallback(() => {
     if (!selectedIsEditable) return;
-    if (values[selected] !== 0) write(0);
-    else if (notes[selected] !== 0) onEraseNotes(selected);
+    const effect = eraseEffect(values[selected]!, notes[selected]!);
+    if (effect === "digit") write(0);
+    else if (effect === "notes") onEraseNotes(selected);
   }, [notes, onEraseNotes, selected, selectedIsEditable, values, write]);
 
-  // Hardware keyboard: digits write (or note), Backspace/Delete/0 erase,
-  // N switches notes on and off, arrows move.
+  // Hardware keyboard: what each key does is `keyAction`'s (game/play.ts).
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
-      const arrow = ARROWS[event.key];
-      if (arrow) {
+      const action = keyAction(event.key);
+      if (action?.kind === "move") {
         event.preventDefault();
-        setSelected((cell) => (cell === null ? 0 : moveFrom(cell, arrow[0], arrow[1])));
-      } else if (/^[1-9]$/.test(event.key)) {
-        digit(Number(event.key));
-      } else if (event.key === "Backspace" || event.key === "Delete" || event.key === "0") {
+        setSelected((cell) =>
+          cell === null ? 0 : moveFrom(cell, action.rows, action.cols),
+        );
+      } else if (action?.kind === "digit") {
+        digit(action.digit);
+      } else if (action?.kind === "erase") {
         erase();
-      } else if (event.key === "n" || event.key === "N") {
+      } else if (action?.kind === "toggle-notes") {
         setNoting((on) => !on);
       }
     }

@@ -9,9 +9,9 @@ import {
   type Grid,
   NO_NOTES,
   type Notes,
+  notesAfterWrite,
   notesFromApi,
   parseGrid,
-  placeDigit,
   setCell,
   toggleNote,
 } from "../game/grid";
@@ -103,7 +103,8 @@ export function GamePage({ gameId }: { gameId: string }) {
   );
 }
 
-const CLEAR_REFUSED = "The grid could not be cleared. These are the digits the server still holds.";
+const CLEAR_REFUSED =
+  "The grid could not be cleared. These are the digits and notes the server still holds.";
 
 const SAVING: Record<QueueStatus, string> = {
   saved: "All inputs saved.",
@@ -138,6 +139,16 @@ function LiveGame({
   const givens = useMemo(() => parseGrid(game.givens), [game.givens]);
   const [values, setValues] = useState<Grid>(() => parseGrid(game.state));
   const [notes, setNotes] = useState<Notes>(() => notesFromApi(game.notes));
+  // The notes as last changed, not as last rendered: two changes landing in one
+  // render must build on each other, and a note's request must carry the set
+  // the screen ends up with.
+  const notesNow = useRef<Notes>(notes);
+  const changeNotes = useCallback((change: (current: Notes) => Notes): Notes => {
+    const next = change(notesNow.current);
+    notesNow.current = next;
+    setNotes(next);
+    return next;
+  }, []);
   const queue = useMemo(() => queues.queueFor(game.game_id), [game.game_id]);
   const [saving, setSaving] = useState<QueueStatus>(() => queue.status);
   const [stopped, setStopped] = useState<StopReason | null>(null);
@@ -185,29 +196,28 @@ function LiveGame({
       setChecked(null); // an answer about the grid before this input is stale
       onInput();
       setValues((current) => setCell(current, givens, cell, value));
-      if (value !== 0) setNotes((current) => placeDigit(current, cell, value));
+      changeNotes((current) => notesAfterWrite(current, cell, value));
       queue.write(cell, value === 0 ? null : value);
     },
-    [givens, queue, onInput],
+    [givens, queue, onInput, changeNotes],
   );
 
   const toggle = useCallback(
     (cell: number, digit: number) => {
       onInput();
-      const next = toggleNote(notes, cell, digit);
-      setNotes(next);
+      const next = changeNotes((current) => toggleNote(current, cell, digit));
       queue.writeNotes(cell, digitsOf(next[cell]!));
     },
-    [notes, queue, onInput],
+    [queue, onInput, changeNotes],
   );
 
   const eraseNotes = useCallback(
     (cell: number) => {
       onInput();
-      setNotes((current) => clearNotes(current, cell));
+      changeNotes((current) => clearNotes(current, cell));
       queue.writeNotes(cell, []);
     },
-    [queue, onInput],
+    [queue, onInput, changeNotes],
   );
 
   // Clearing takes a second tap, like starting (D25): it cannot be undone,
@@ -217,7 +227,7 @@ function LiveGame({
     setChecked(null);
     onInput();
     setValues(givens);
-    setNotes(NO_NOTES);
+    changeNotes(() => NO_NOTES);
     queue.clear();
   }
 
@@ -284,7 +294,7 @@ function LiveGame({
           {confirmingClear ? (
             <>
               <p className="clear__text">
-                Clear every digit you placed? The clock keeps running.
+                Clear every digit and note you placed? The clock keeps running.
               </p>
               <div className="slot__actions">
                 <button type="button" className="button" disabled={checking} onClick={clear}>
