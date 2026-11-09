@@ -211,6 +211,7 @@ only moment a puzzle becomes visible, and it is the moment `started_at` is set
       { "game_id": "…", "difficulty": "hard", "date": "2026-09-09",
         "givens":  "003020600…",
         "state":   "003020600…",
+        "notes":   [[], [], …],          // 81 empty lists
         "started_at": "2026-09-09T21:14:03+02:00" }
 
 | Condition | Response |
@@ -229,6 +230,7 @@ Resuming. Returns everything needed to rebuild the board.
     ← 200
       { "game_id": "…", "difficulty": "hard", "date": "2026-09-09",
         "givens": "003020600…", "state": "043020690…",
+        "notes": [[], [1, 5], [], …],      // 81 lists, one per cell (D33)
         "status": "in_progress",
         "started_at": "…", "completed_at": null,
         "official_seconds": null, "active_seconds": 512,
@@ -275,6 +277,32 @@ else's game stop at `404` and cost its owner nothing.
 | Game already completed | `409 game_completed` |
 | Game closed by rollover | `410 game_closed` |
 | Bad index or value | `422` |
+| Over the rate limit | `429` |
+
+### `PUT /api/games/{id}/notes/{index}`
+
+The player's notes in one cell (D33). `index` is `0`–`80`.
+
+    → { "notes": [1, 4, 7] }   // every digit noted there; [] removes them all
+    ← 204
+
+Replaces the cell's notes. An input in every respect: the same legality, the
+same row lock, the same rate-limit bucket as a digit, and activity like one.
+Never judged, and the request never reads `puzzle_solutions`.
+
+`notes` must be present: a list of at most nine distinct integers 1–9. Nothing
+is coerced. Placing a digit with `PUT …/cells/{index}` removes the notes of that
+cell and that digit from the notes of its row, column and box (`GAME_RULES.md`
+§3); `DELETE …/cells` removes every note.
+
+| Condition | Response |
+|---|---|
+| Not the caller's game, or no such game | `404 game_not_found` |
+| Cell is a given | `409 cell_is_given` |
+| Cell holds a digit | `409 cell_is_filled` |
+| Game already completed | `409 game_completed` |
+| Game closed by rollover | `410 game_closed` |
+| Bad index or notes | `422` |
 | Over the rate limit | `429` |
 
 ### `DELETE /api/games/{id}/cells`

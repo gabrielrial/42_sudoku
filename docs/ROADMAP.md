@@ -187,7 +187,7 @@ hosting provider is chosen at this point, not before.
 ## Out of scope until after MVP
 
 Social features, notifications, more than one puzzle per day, difficulties
-beyond the three, an admin interface, a native mobile app, pencil marks
-(`DECISIONS.md` Q5).
+beyond the three, an admin interface, a native mobile app. Pencil marks
+(`DECISIONS.md` Q5) were built after the MVP, as notes (D33).
 
 The leaderboard is planned (Phase 8) but is not MVP.

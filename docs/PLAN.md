@@ -287,7 +287,8 @@ A small test on the internet rather than a LAN (D32).
 Before it, on `feature/delete-account`: a user can delete their account and
 everything of theirs (D30), the deletion path of Q8. **Done 2026-11-02.** Every
 move recorded for 30 days (D31), on `feature/move-log`. The privacy note at
-`/privacy` and rotated logs (Q8, answered), on `feature/privacy-note`.
+`/privacy` and rotated logs (Q8, answered), on `feature/privacy-note`. Notes
+(D33), on `feature/notes`.
 
 Deployment compose: uvicorn without `--reload`, migrations on start, built
 front end served by FastAPI (D32) — answering every client path (`/games/…`,
