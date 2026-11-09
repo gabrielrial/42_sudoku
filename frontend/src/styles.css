@@ -118,6 +118,47 @@ body {
   color: var(--ink-soft);
 }
 
+.sign-in__privacy {
+  color: var(--ink-soft);
+}
+
+.site-footer {
+  max-width: 492px;
+  margin: 0 auto;
+  padding: 0 16px 24px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.site-footer a {
+  color: inherit;
+}
+
+.privacy {
+  max-width: 492px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  line-height: 1.5;
+}
+
+.privacy h2 {
+  margin: 24px 0 8px;
+  font-size: 1.1rem;
+}
+
+.privacy p {
+  margin: 8px 0;
+}
+
+.privacy ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.privacy li {
+  margin-bottom: 8px;
+}
+
 .sign-in__notice {
   margin: 0;
 }

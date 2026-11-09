@@ -132,8 +132,9 @@ Notes beyond the numbers:
   is fetched for that one call and never stored either.
 - Never log tokens, secrets, cookies, or authorization codes. That covers the
   access log, which writes whole URLs: every URL is logged without its query
-  (`app/access_log.py`). A proxy put in front of the API must do the same. It
-  also covers database errors, whose text would quote the bound parameters
+  (`app/access_log.py`). A proxy put in front of the API must do the same; ngrok,
+  for now, is an accepted exception (`DECISIONS.md` D32). The rule also covers
+  database errors, whose text would quote the bound parameters
   (`state`, the PKCE verifier): the engine hides them (`hide_parameters`). Logs
   name a user by `users.id`, never by their 42 id, which would outlive a deleted
   account (`DECISIONS.md` D30).
@@ -143,8 +144,8 @@ Notes beyond the numbers:
   does: treat both as carefully as `puzzle_solutions`, and never show one to
   anyone but the player who typed it.
 - GDPR applies — real people's identities, in the EU. Users can delete their
-  account and everything of theirs (`DECISIONS.md` D30). A privacy note and a
-  retention period are still needed before Stage 7 (`DECISIONS.md` Q8).
+  account and everything of theirs (`DECISIONS.md` D30). The privacy note is at
+  `/privacy`, and retention is decided in `DECISIONS.md` Q8.
 
 ## Standard controls
 

@@ -3,8 +3,18 @@ name: sudoku42
 # Local development only (deployment stage 1). Values come from .env, which is
 # never committed; see .env.example.
 
+# Docker keeps a container's log without limit unless told otherwise. Rotated by
+# size, so what the privacy page promises is true (DECISIONS.md Q8). Size, not
+# days: this driver cannot do days.
+x-logging: &rotated-logs
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
+    logging: *rotated-logs
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-sudoku}
@@ -24,6 +34,7 @@ services:
       retries: 10
 
   api:
+    logging: *rotated-logs
     build: ./backend
     environment: &backend-environment
       # Required, no default (D19): compose refuses to start without it.
@@ -65,6 +76,7 @@ services:
   # retention period (D31). Its own process, so a slow Hard never slows the API.
   # `make puzzles` runs one round by hand.
   puzzles:
+    logging: *rotated-logs
     build: ./backend
     environment: *backend-environment
     depends_on:
@@ -76,6 +88,7 @@ services:
     restart: unless-stopped
 
   web:
+    logging: *rotated-logs
     build: ./frontend
     environment:
       VITE_API_BASE: ${VITE_API_BASE:-/api}

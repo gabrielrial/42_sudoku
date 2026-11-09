@@ -10,6 +10,8 @@ describe("parseRoute", () => {
     ["/games/", { page: "not_found" }],
     ["/games/a/b", { page: "not_found" }],
     ["/games/%E0%A4%A", { page: "not_found" }], // a malformed escape does not throw
+    ["/privacy", { page: "privacy" }],
+    ["/privacy/more", { page: "not_found" }],
     ["/leaderboard", { page: "not_found" }],
   ])("%s", (pathname, route) => {
     expect(parseRoute(pathname)).toEqual(route);

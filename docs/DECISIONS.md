@@ -482,6 +482,63 @@ when its id is assigned, while `played_at` follows the clock, which can step bac
 Deleting an account locks the user's games before the user, the order a move takes
 them in, or the two would deadlock.
 
+### D32 — The first deployment goes through ngrok, and FastAPI serves the front end
+Decided 2026-11-04, by the developer. Answers `PLAN.md` P2 and P3, and turns
+Stage 7 from a LAN into a small test on the internet.
+
+**P3:** FastAPI serves the built front end as well as the API: one origin and one
+port, no CORS, no extra container. Any path that is neither a file nor under
+`/api` answers `index.html`, or reloading a game would be a `404`.
+
+**P2:** ngrok's free plan gives the HTTPS that `Secure` cookies and the cross-tab
+refresh lock (D15) need, on a domain that does not change when the agent restarts
+(ngrok's docs, read 2026-11-04), so it can be registered with 42. No nginx: ngrok is
+the proxy, and FastAPI does the rest. mkcert was dropped: every player's device
+would have to trust a certificate.
+
+Accepted, knowing it:
+
+- **20,000 requests a month** on the free plan. At about 80 a game, an estimate,
+  that is some 8 games a day, and one game left open uses 1,440 a day in
+  heartbeats. The docs do not say what happens at the limit. Enough for a few
+  friends, not a campus; beyond that, a paid plan or another tunnel.
+- **ngrok sees the traffic.** The docs imply TLS ends at its edge, keep 24 hours in
+  its traffic inspector, and its local inspector records URLs and headers with no
+  off switch that the docs mention. That includes the sign-in's `code` and `state`
+  and the session cookies. So `SECURITY.md`'s "a proxy must not log query strings"
+  **cannot be guaranteed here**, and the privacy note names ngrok (Q8).
+- **An interstitial** on first visit, once per domain per 7 days. Whether it
+  disturbs the return from 42 is not documented: to be tried.
+- **It is on the internet:** anyone with a 42 account and the link can play, and it
+  is up only while the machine is on.
+
+Review all of this before opening the site beyond a small test.
+
+### Q8 — GDPR and privacy (answered)
+Answered 2026-11-04, by the developer. Real identities of real EU students. Not
+reviewed by a lawyer: review it before going beyond a small test.
+
+**The note** is a public page at `/privacy`, linked from the sign-in page and every
+signed-in page. Responsible: Gabriel Rial, `sudoku42@yahoo.com`. A change to what is
+stored, who sees it or for how long changes that page in the same commit. Legal
+basis: performing what the player asked for, and legitimate interest for logs,
+moves and limits.
+
+**Deletion** is D30.
+
+**Retention:**
+
+| Data | How long |
+|---|---|
+| Account and games | Until the user deletes the account |
+| Moves | 30 days (D31) |
+| Logs | Until overwritten: 3 files of 10 MB per service, by size, not days |
+| Backups | None during the test: a lost disk loses the games. Phase 9 sets a period, and a restore must not bring back deleted users |
+| ngrok | Its 24-hour inspector; beyond that, out of our control (D32) |
+
+To revisit: a leaderboard (Phase 8) shows others' results, which the note today says
+does not happen; public deployment may also need an *Impressum* in Germany.
+
 ### Q1 — The activity rule behind D6 (answered)
 
 | Parameter | Value |
@@ -679,13 +736,6 @@ changes.
 Nothing here blocks Phases 1–6. All of it should be settled before Phase 9.
 
 ## Low — can be answered later, but do not forget
-
-### Q8 — GDPR and privacy
-Real identities of real EU students. The deletion path is D30. Still needed: a
-short privacy note, and a decision on how long data is kept. They were due
-before stage 3, which passed without them; they are now due before anyone but
-the developer plays (Stage 7). The retention decision includes logs and backups
-(D30). The note must say that each digit typed is recorded for 30 days (D31).
 
 ### Q9 — Is this graded as a 42 curriculum project?
 If so it may carry constraints — a required run command, a defence, forbidden
