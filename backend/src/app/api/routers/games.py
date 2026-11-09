@@ -16,12 +16,15 @@ from app.database.schema.games import (
     GameStarted,
     GameView,
     NewGame,
+    NotesInput,
 )
 from app.services.game_status import Status, Thresholds
 from app.services.games import (
     clear_cells,
     complete,
     heartbeat,
+    note_cell,
+    notes_of,
     official_seconds,
     owned_game,
     play_cell,
@@ -46,6 +49,7 @@ def create_game(
         date=puzzle.puzzle_date,
         givens=puzzle.givens,
         state=game.state,
+        notes=notes_of(game),
         started_at=game.started_at,
     )
 
@@ -67,6 +71,7 @@ def read_game(
         date=puzzle.puzzle_date,
         givens=puzzle.givens,
         state=game.state,
+        notes=notes_of(game),
         status=owned.status.value,
         started_at=game.started_at,
         completed_at=game.completed_at,
@@ -95,6 +100,26 @@ def put_cell(
     # After ownership: nobody can spend another player's inputs by guessing an id.
     enforce(request.app.state.input_limiter, str(owned.game.id), "Too many inputs. Slow down.")
     play_cell(db, owned, index, body.value, timedelta(seconds=settings.game_active_gap_seconds))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put("/{game_id}/notes/{index}", status_code=status.HTTP_204_NO_CONTENT)
+def put_notes(
+    game_id: str,
+    index: Annotated[int, Path(ge=0, le=80)],
+    body: NotesInput,
+    request: Request,
+    db: Annotated[Session, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> Response:
+    """The notes of one cell (D33). An input like a digit: the same lock, the
+    same rate limit, the same activity; never judged."""
+    owned = owned_game(
+        db, user, game_id, clock.now, Thresholds.from_settings(settings), for_update=True
+    )
+    enforce(request.app.state.input_limiter, str(owned.game.id), "Too many inputs. Slow down.")
+    note_cell(db, owned, index, body.notes, timedelta(seconds=settings.game_active_gap_seconds))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

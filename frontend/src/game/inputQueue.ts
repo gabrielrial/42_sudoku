@@ -2,11 +2,14 @@
 // or a dropped connection (GAME_RULES.md §3: every input is sent, validated
 // and persisted). No React in here.
 //
-// One request at a time: the server locks the game row per input anyway, and
-// sending them in sequence keeps the cells' final values in the order typed.
-// A cell written again before its turn is sent once, with its last value —
-// the server keeps only that, so the requests in between would only spend
-// the rate limit (a burst of 10, refilled at one a second, D22).
+// One request at a time, in the order typed: the server locks the game row
+// per input anyway. Every digit is sent, even one rewritten before its turn:
+// placing a digit takes it out of the notes of its row, column and box (D33),
+// which the screen has already done, so the server has to see each digit to
+// end up with the same notes. Notes have no such effect on other cells: notes
+// for a cell written again with nothing else in between are sent once, with
+// their last value, which spares the rate limit (a burst of 10, refilled at
+// one a second, D22) when several are tapped in a row.
 //
 // Clearing the grid (D27) goes through the same line: whatever was waiting
 // is dropped, the grid being about to be emptied anyway, and whatever is
@@ -35,6 +38,8 @@ export interface QueueEvent {
 export interface InputQueue {
   /** `value` 1-9, or `null` to clear. */
   write(cell: number, value: number | null): void;
+  /** Every digit noted in the cell, replacing what was there (D33). */
+  writeNotes(cell: number, digits: readonly number[]): void;
   /** Empty every cell the player filled. */
   clear(): void;
   /** Resolves once everything written so far is saved: `true`, or `false`
@@ -60,14 +65,19 @@ export function stopReasonOf(error: unknown): StopReason | null {
 /** Waits after a lost connection: 1 s, 2 s, 4 s… never more than 30 s. */
 export const backoff = (failures: number): number => Math.min(30_000, 1000 * 2 ** (failures - 1));
 
+type Entry =
+  | { kind: "digit"; cell: number; value: number | null }
+  | { kind: "notes"; cell: number; digits: readonly number[] };
+// `digits` is replaced in place when the same cell's notes are written again.
+
 export function createInputQueue(
   put: (cell: number, value: number | null) => Promise<void>,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   clearAll: () => Promise<void> = async () => {},
+  putNotes: (cell: number, digits: readonly number[]) => Promise<void> = async () => {},
 ): InputQueue {
-  // Insertion order is sending order; setting a cell already waiting keeps its
-  // place and replaces its value.
-  const pending = new Map<number, number | null>();
+  // In sending order.
+  let pending: Entry[] = [];
   // A clear asked for and not yet saved. It goes before every cell waiting:
   // asking for it dropped the rest, so those were all written after it.
   let clearing = false;
@@ -92,21 +102,11 @@ export function createInputQueue(
     waiters.forEach((resolve) => resolve(saved));
   }
 
-  /** Put a failed input back at the head, unless the cell was written again
-   * meanwhile: then the newer value, already waiting, is the one to send. */
-  function retryFirst(cell: number, value: number | null) {
-    if (pending.has(cell)) return;
-    const rest = [...pending];
-    pending.clear();
-    pending.set(cell, value);
-    rest.forEach(([c, v]) => pending.set(c, v));
-  }
-
   async function run() {
     if (running) return;
     running = true;
     let failures = 0;
-    while (stopped === null && (clearing || pending.size > 0)) {
+    while (stopped === null && (clearing || pending.length > 0)) {
       let send: () => Promise<void>;
       let retry: () => void;
       const sendingClear = clearing;
@@ -117,12 +117,15 @@ export function createInputQueue(
           clearing = true;
         };
       } else {
-        const [cell, value] = pending.entries().next().value!;
-        pending.delete(cell);
+        const entry = pending.shift()!;
         const taken = clears;
-        send = () => put(cell, value);
+        send = () =>
+          entry.kind === "digit"
+            ? put(entry.cell, entry.value)
+            : putNotes(entry.cell, entry.digits);
+        // Back at the head: whatever was typed after it is still sent after it.
         retry = () => {
-          if (clears === taken) retryFirst(cell, value);
+          if (clears === taken) pending.unshift(entry);
         };
       }
       emit("saving");
@@ -133,7 +136,7 @@ export function createInputQueue(
         const reason = stopReasonOf(error);
         if (reason !== null) {
           stopped = reason;
-          pending.clear();
+          pending = [];
           break;
         }
         if (error instanceof ApiError && error.status === 429) {
@@ -166,19 +169,26 @@ export function createInputQueue(
   return {
     write(cell, value) {
       if (stopped !== null) return;
-      pending.set(cell, value);
+      pending.push({ kind: "digit", cell, value });
+      void run();
+    },
+    writeNotes(cell, digits) {
+      if (stopped !== null) return;
+      const last = pending.at(-1);
+      if (last?.kind === "notes" && last.cell === cell) last.digits = digits;
+      else pending.push({ kind: "notes", cell, digits });
       void run();
     },
     clear() {
       if (stopped !== null) return;
-      pending.clear();
+      pending = [];
       clears += 1;
       clearing = true;
       void run();
     },
     idle() {
       if (stopped !== null) return Promise.resolve(false);
-      if (!running && !clearing && pending.size === 0) return Promise.resolve(true);
+      if (!running && !clearing && pending.length === 0) return Promise.resolve(true);
       return new Promise((resolve) => idleWaiters.push(resolve));
     },
     subscribe(listener) {

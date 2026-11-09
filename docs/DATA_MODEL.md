@@ -100,16 +100,21 @@ same transaction as the action; nothing plays from it, and no endpoint serves it
 | `id` | `BIGSERIAL` | primary key. **Replay a game by this**: every writer holds the game's lock when it is assigned |
 | `game_id` | `UUID NOT NULL` | FK → `game_sessions(id)` `ON DELETE CASCADE` |
 | `user_id` | `INTEGER NOT NULL` | FK → `users(id)` `ON DELETE CASCADE`; repeated here so it can be indexed |
-| `kind` | `TEXT NOT NULL` | `input`, `clear` or `check` |
-| `cell` | `SMALLINT` | 0–80; `input` only |
+| `kind` | `TEXT NOT NULL` | `input`, `notes`, `clear` or `check` |
+| `cell` | `SMALLINT` | 0–80; `input` and `notes` only |
 | `previous_value` | `SMALLINT` | 0–9, 0 for empty; `input` only |
 | `value` | `SMALLINT` | 0–9, 0 for empty; `input` only |
+| `previous_notes` | `SMALLINT` | 0–511, the cell's notes before as a bitmask; `notes` only |
+| `notes` | `SMALLINT` | 0–511, the cell's notes after; `notes` only |
 | `correct` | `BOOLEAN` | the answer the player was told; `check` only |
 | `played_at` | `TIMESTAMPTZ NOT NULL` | the instant the game was judged at; the clock's, so it can step back |
 
 - Indexed on `(user_id, played_at)` and `(game_id, played_at)`.
-- `CHECK` ties each kind to its columns: an `input` has its three values, and only
-  a `check` has `correct`.
+- `CHECK` ties each kind to its columns: an `input` has its three values, a `notes`
+  its cell and both masks, and only a `check` has `correct`.
+- The notes a placed digit takes from its peers (D33) are not rows of their own:
+  replaying the `input` redoes them. A `clear` empties every note: replay sets all
+  81 back to 0.
 - Deleted after `MOVE_LOG_DAYS` (30) by the hourly `puzzles` round. No index on
   `played_at` alone: scanned once an hour, it took under a third of a second at a
   million rows.
@@ -125,7 +130,8 @@ same transaction as the action; nothing plays from it, and no endpoint serves it
 | `user_id` | `INTEGER NOT NULL` | FK → `users(id)` `ON DELETE CASCADE`; the type of `users.id` |
 | `puzzle_id` | `BIGINT NOT NULL` | FK → `puzzles(id)` `ON DELETE RESTRICT` |
 | `state` | `CHAR(81) NOT NULL` | current grid; `CHECK (state ~ '^[0-9]{81}$')` |
-| `state_version` | `SMALLINT NOT NULL DEFAULT 1` | format version (Q5) |
+| `notes` | `SMALLINT[] NOT NULL` | 81 bitmasks, bit `d - 1` for digit `d`; all 0 by default; `CHECK` 81 entries, each 0–511 (D33) |
+| `state_version` | `SMALLINT NOT NULL DEFAULT 2` | format version: 2 since notes (Q5, D33) |
 | `started_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | official clock starts here (D2) |
 | `completed_at` | `TIMESTAMPTZ` | set only after verification (D2) |
 | `last_activity_at` | `TIMESTAMPTZ NOT NULL DEFAULT now()` | inputs, heartbeats and submissions (D22) |
@@ -158,11 +164,12 @@ A session's status is **computed on read** (Q1), never trusted from a column:
 without re-deriving it across the whole table. It is never the source of truth.
 Once a day has passed 02:00 the two can no longer disagree.
 
-### Pencil marks
+### Notes
 
-Not built in the MVP (Q5). They arrive as a new nullable `notes JSONB` column
-with `state_version` bumped to 2 — an additive migration, not a redesign. That
-is the entire reason `state_version` exists now.
+Built after the MVP (D33), as Q5 planned: an additive migration and
+`state_version` 2. A `SMALLINT[]` of bitmasks rather than the `JSONB` first
+planned: fixed size, checkable by a `CHECK`, and the same layout the client
+keeps. The API shows them as lists of digits.
 
 ## `oauth_states`
 

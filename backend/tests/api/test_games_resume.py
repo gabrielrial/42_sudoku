@@ -52,6 +52,7 @@ def test_the_owner_gets_everything_to_rebuild_the_board(signed_in: TestClient) -
         "date": "2026-10-24",
         "givens": GIVENS,
         "state": GIVENS,
+        "notes": [[]] * 81,
         "status": "in_progress",
         "started_at": NOW.isoformat().replace("+00:00", "Z"),
         "completed_at": None,

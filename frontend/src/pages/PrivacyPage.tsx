@@ -32,12 +32,14 @@ export function PrivacyPage() {
           access token.
         </li>
         <li>
-          <strong>Your games:</strong> the grid as it stands, when you started, finished and were
-          last active, your active time, and how many times you checked the grid.
+          <strong>Your games:</strong> the grid as it stands with your notes, when you started,
+          finished and were last active, your active time, and how many times you checked the
+          grid.
         </li>
         <li>
-          <strong>Every move:</strong> each digit you enter or remove, each time you clear the grid,
-          and each check with its answer, all with the time.
+          <strong>Every move:</strong> each digit you enter or remove, each change to a
+          cell&apos;s notes, each time you clear the grid, and each check with its answer, all
+          with the time.
         </li>
         <li>
           <strong>Your session:</strong> two cookies that keep you signed in, a third that protects

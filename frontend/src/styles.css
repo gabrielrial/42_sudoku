@@ -350,9 +350,10 @@ body {
 
 .board {
   display: grid;
-  grid-template-columns: repeat(9, 1fr);
-  /* Explicit, or a row with no digit in it collapses to less than its share. */
-  grid-template-rows: repeat(9, 1fr);
+  /* Explicit, or a row with no digit in it collapses to less than its share;
+     minmax(0, …), or a row of notes grows past it. Nine equal tracks, always. */
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  grid-template-rows: repeat(9, minmax(0, 1fr));
   width: var(--board-size);
   aspect-ratio: 1;
   border: 2px solid var(--line-strong);
@@ -434,6 +435,44 @@ body {
 .pad__key--erase {
   font-size: 0.95rem;
   color: var(--ink-soft);
+}
+
+.pad__key--notes {
+  grid-column: 1 / -1;
+  min-height: 40px;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+
+.pad__key--notes[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pad--noting .pad__key:not(.pad__key--erase):not(.pad__key--notes) {
+  color: var(--ink-soft);
+  font-size: 1rem;
+}
+
+.cell__notes {
+  display: grid;
+  /* minmax(0, …): a track may not grow past its third to fit its digit. */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(3, minmax(0, 1fr));
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  padding: 2px;
+  color: var(--ink-soft);
+  font-size: calc(var(--board-size) / 9 * 0.27);
+  font-weight: 400;
+}
+
+.cell__notes span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .pad__key:disabled {

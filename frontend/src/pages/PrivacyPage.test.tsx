@@ -15,6 +15,7 @@ describe("the privacy page", () => {
   // project, and a reader's only way to know it (DECISIONS.md Q8, D30, D31, D32).
   it.each([
     ["the record of moves", /Every move/],
+    ["that notes are kept and recorded", /notes/],
     ["its retention, MOVE_LOG_DAYS", /30 days/],
     ["the session's lifetime, REFRESH_TOKEN_DAYS", /7 days/],
     ["the log rotation in docker-compose.yml", /three files of 10 MB/],

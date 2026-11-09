@@ -514,6 +514,28 @@ Accepted, knowing it:
 
 Review all of this before opening the site beyond a small test.
 
+### D33 — Notes, kept on the server
+Decided 2026-11-09, by the developer: Q5's pencil marks. Without them the tier-3
+techniques Hard requires, triples and X-Wings, are hard to see at all.
+
+- **On the server**, as part of the game: they survive a reload and another
+  device, as everything else in a game does (`GAME_RULES.md` §3). Each change of a
+  cell's notes is a request, which costs rate limit and, on ngrok's free plan
+  (D32), part of its monthly quota.
+- **Recorded** in `game_moves` like every move (D31).
+- **Placing a digit removes that digit from the notes of its row, column and box**,
+  on the server, as many Sudoku apps do. It reveals nothing: it applies the rules,
+  not the solution.
+- `PUT /api/games/{id}/notes/{index}` replaces one cell's notes. `GET` returns them
+  as 81 lists of digits. Stored as 81 bitmasks (`DATA_MODEL.md`).
+
+**What it changes in the client's input queue.** It used to send a digit rewritten
+before its turn once, with its last value. No longer: each digit takes notes away
+from its peers on screen at once, and the server must place each one to end up with
+the same notes. Every digit is now sent, in order. Notes for one cell tapped in a
+row, with nothing in between, are still merged, since a note affects no other cell.
+The cost is a few more requests when a cell is rewritten quickly.
+
 ### Q8 — GDPR and privacy (answered)
 Answered 2026-11-04, by the developer. Real identities of real EU students. Not
 reviewed by a lawyer: review it before going beyond a small test.
@@ -644,7 +666,7 @@ frameworks and the decision is not worth further debate.
 ### Q5 — Pencil marks (answered: after the MVP, but plan for them)
 Not built in the MVP. The game-state snapshot format reserves room for them and
 carries a version number from the first migration, so that adding them later is
-a format upgrade rather than a redesign.
+a format upgrade rather than a redesign. Built since: D33.
 
 ### Q6 — Mobile support (answered: yes)
 The interface is responsive and usable on a phone. The board must survive a

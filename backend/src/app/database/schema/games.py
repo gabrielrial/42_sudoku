@@ -8,7 +8,7 @@ import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, StrictInt
+from pydantic import BaseModel, Field, StrictInt, field_validator
 
 Difficulty = Literal["easy", "medium", "hard"]
 TodayStatus = Literal["not_started", "in_progress", "completed"]
@@ -46,12 +46,17 @@ class NewGame(BaseModel):
     difficulty: Difficulty
 
 
+Notes = list[list[int]]
+"""81 entries, one per cell: the digits noted there, ascending (D33)."""
+
+
 class GameStarted(BaseModel):
     game_id: uuid.UUID
     difficulty: Difficulty
     date: date
     givens: str
     state: str
+    notes: Notes
     started_at: datetime
 
 
@@ -63,6 +68,7 @@ class GameView(BaseModel):
     date: date
     givens: str
     state: str
+    notes: Notes
     status: Literal["in_progress", "completed"]
     """Never "closed": a closed game answers 410 instead."""
     started_at: datetime
@@ -80,6 +86,20 @@ class CellInput(BaseModel):
     """
 
     value: Annotated[StrictInt, Field(ge=1, le=9)] | None
+
+
+class NotesInput(BaseModel):
+    """``{"notes": [1, 4, 7]}``: every digit noted in the cell, replacing what was
+    there; ``[]`` removes them all. Integers 1-9, each at most once."""
+
+    notes: Annotated[list[Annotated[StrictInt, Field(ge=1, le=9)]], Field(max_length=9)]
+
+    @field_validator("notes")
+    @classmethod
+    def _once_each(cls, digits: list[int]) -> list[int]:
+        if len(set(digits)) != len(digits):
+            raise ValueError("each digit at most once")
+        return digits
 
 
 class CompletionResult(BaseModel):

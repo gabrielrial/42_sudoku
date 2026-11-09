@@ -185,6 +185,16 @@ AN_INPUT = {"kind": "input", "cell": 0, "previous_value": 0, "value": 1}
         ({"kind": "input"}, "game_moves_input_check"),
         ({"kind": "clear", "cell": 3, "previous_value": 0, "value": 1}, "game_moves_input_check"),
         ({"kind": "check"}, "game_moves_check_check"),
+        ({"kind": "notes", "cell": 3}, "game_moves_notes_check"),
+        ({"kind": "clear", "cell": 3, "previous_notes": 0, "notes": 1}, "game_moves_notes_check"),
+        (
+            {"kind": "notes", "cell": 3, "previous_notes": 0, "notes": 512},
+            "game_moves_notes_range_check",
+        ),
+        (
+            {"kind": "notes", "cell": 3, "previous_notes": -1, "notes": 0},
+            "game_moves_previous_notes_check",
+        ),
         ({"kind": "clear", "correct": True}, "game_moves_check_check"),
         ({**AN_INPUT, "cell": 81}, "game_moves_cell_check"),
         ({**AN_INPUT, "cell": -1}, "game_moves_cell_check"),

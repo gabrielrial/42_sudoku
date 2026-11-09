@@ -42,7 +42,15 @@ starting the clock.
 
 - The server holds the authoritative game state.
 - Every user input is sent to the server, validated, and persisted.
-- Each accepted input, each clear and each full-grid check is also recorded, with
+- **Notes.** In an empty cell that is not a given, the player may note any of
+  the digits 1–9 as candidates. Notes are part of the game the server holds:
+  saved, restored on resume, and legal under the same conditions as a digit.
+  The server never judges them. Placing a digit removes that cell's notes, and
+  removes that digit from the notes of every cell in its row, column and box;
+  emptying the cell again brings none of them back. Clearing the grid removes
+  every note (`DECISIONS.md` D33).
+- Each accepted input, each change of a cell's notes, each clear and each full-grid
+  check is also recorded, with
   its time, to diagnose failures. The record is kept for **30 days**
   (configuration), goes with the account if it is deleted, and is never shown to
   anyone through the API. It holds what was typed, not whether it was right; only

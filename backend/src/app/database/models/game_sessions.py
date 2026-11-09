@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    ARRAY,
     CHAR,
     UUID,
     BigInteger,
@@ -35,6 +36,11 @@ class GameSession(Base):
         # also serves "this user's games": user_id is its first column.
         UniqueConstraint("user_id", "puzzle_id", name="game_sessions_user_id_puzzle_id_key"),
         CheckConstraint("state ~ '^[0-9]{81}$'", name="game_sessions_state_check"),
+        CheckConstraint(
+            "cardinality(notes) = 81 AND array_position(notes, NULL) IS NULL "
+            "AND 0 <= ALL (notes) AND 511 >= ALL (notes)",
+            name="game_sessions_notes_check",
+        ),
         # The daily leaderboards (Phase 8) read completed games of one puzzle.
         Index(
             "ix_game_sessions_puzzle_id_completed_at",
@@ -59,8 +65,12 @@ class GameSession(Base):
     """Bound for good (D6, D7): never updated, and the puzzle cannot be deleted under it."""
     state: Mapped[str] = mapped_column(CHAR(81))
     """The grid as it stands: the givens plus every input, '0' for an empty cell."""
-    state_version: Mapped[int] = mapped_column(SmallInteger, server_default=text("1"))
-    """Format version, so pencil marks can arrive later as an upgrade (Q5)."""
+    notes: Mapped[list[int]] = mapped_column(
+        ARRAY(SmallInteger), server_default=text("array_fill(0, ARRAY[81])::smallint[]")
+    )
+    """The player's notes (D33): one bitmask per cell, bit ``d - 1`` for digit ``d``."""
+    state_version: Mapped[int] = mapped_column(SmallInteger, server_default=text("2"))
+    """Format version: 2 since notes arrived (Q5, D33)."""
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_activity_at: Mapped[datetime] = mapped_column(

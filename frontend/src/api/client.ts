@@ -98,6 +98,8 @@ export interface GameStarted {
   date: string;
   givens: string;
   state: string;
+  /** 81 lists of the digits noted in each cell (D33). */
+  notes: number[][];
   started_at: string;
 }
 
@@ -116,6 +118,7 @@ export interface GameView {
   date: string;
   givens: string;
   state: string;
+  notes: number[][];
   status: "in_progress" | "completed";
   started_at: string;
   completed_at: string | null;
@@ -194,6 +197,12 @@ export function createClient({
       request<void>(`/games/${encodeURIComponent(gameId)}/cells/${cell}`, {
         method: "PUT",
         body: JSON.stringify({ value }),
+      }),
+    /** Replaces the notes of one cell; never judged (D33). */
+    putNotes: (gameId: string, cell: number, digits: readonly number[]) =>
+      request<void>(`/games/${encodeURIComponent(gameId)}/notes/${cell}`, {
+        method: "PUT",
+        body: JSON.stringify({ notes: digits }),
       }),
     /** Empties every cell the player filled; the clock goes on (D27). */
     clearCells: (gameId: string) =>

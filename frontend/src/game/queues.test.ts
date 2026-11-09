@@ -10,6 +10,7 @@ const GAME: GameView = {
   date: "2026-10-26",
   givens: "0".repeat(81),
   state: "0".repeat(81),
+  notes: Array.from({ length: 81 }, () => []),
   status: "in_progress",
   started_at: "2026-10-26T20:00:00+01:00",
   completed_at: null,

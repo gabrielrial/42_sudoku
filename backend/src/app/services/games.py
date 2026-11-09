@@ -27,6 +27,7 @@ from app.database.models.puzzles import DIFFICULTIES, Puzzle, PuzzleSolution
 from app.database.models.users import User
 from app.errors import APIError
 from app.services.game_status import Status, Thresholds, session_status
+from sudoku.board import PEERS
 
 
 @dataclass(frozen=True)
@@ -294,12 +295,53 @@ def play_cell(db: Session, owned: OwnedGame, index: int, value: int | None, gap:
         )
     )
     game.state = game.state[:index] + digit + game.state[index + 1 :]
+    if value is not None:
+        game.notes = place_digit(game.notes, index, value)
     _touch(owned, gap)
     db.commit()
 
 
+def place_digit(notes: list[int], index: int, value: int) -> list[int]:
+    """The notes once ``value`` is placed in cell ``index`` (D33): none left in
+    that cell, and ``value`` gone from the notes of its row, column and box."""
+    bit = 1 << (value - 1)
+    after = [mask & ~bit if cell in PEERS[index] else mask for cell, mask in enumerate(notes)]
+    after[index] = 0
+    return after
+
+
+def note_cell(db: Session, owned: OwnedGame, index: int, digits: list[int], gap: timedelta) -> None:
+    """Replace the notes of cell ``index`` with ``digits`` (D33).
+
+    Legal where a digit could be typed, and only in an empty cell: a placed
+    digit has no notes. Never compared with the solution.
+    """
+    game = _open(owned)
+    if owned.puzzle.givens[index] != "0":
+        raise APIError(
+            "cell_is_given", "That cell is part of the puzzle.", status.HTTP_409_CONFLICT
+        )
+    if game.state[index] != "0":
+        raise APIError(
+            "cell_is_filled", "That cell holds a digit; empty it first.", status.HTTP_409_CONFLICT
+        )
+    mask = sum(1 << (digit - 1) for digit in digits)
+    db.add(_move(owned, "notes", cell=index, previous_notes=game.notes[index], notes=mask))
+    after = list(game.notes)
+    after[index] = mask
+    game.notes = after
+    _touch(owned, gap)
+    db.commit()
+
+
+def notes_of(game: GameSession) -> list[list[int]]:
+    """The notes as the API shows them: the digits of each cell, ascending."""
+    return [[d for d in range(1, 10) if mask & (1 << (d - 1))] for mask in game.notes]
+
+
 def clear_cells(db: Session, owned: OwnedGame, gap: timedelta) -> None:
-    """Empty every cell the player filled: the grid is the givens again (D27).
+    """Empty every cell the player filled, and every note: the grid is the
+    givens again (D27, D33).
 
     Not a restart (D3): ``started_at``, the submissions and the active time
     stay as they are, and the official clock goes on. It is an input, so it
@@ -308,6 +350,7 @@ def clear_cells(db: Session, owned: OwnedGame, gap: timedelta) -> None:
     game = _open(owned)
     db.add(_move(owned, "clear"))
     game.state = owned.puzzle.givens
+    game.notes = [0] * 81
     _touch(owned, gap)
     db.commit()
 
